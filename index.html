@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OSRS Optimal Quest Tracker</title>
+<meta name="description" content="Track every OSRS quest in the OSRS Wiki optimal quest guide order, with RuneProfile sync.">
+<meta name="theme-color" content="#241f18">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Quest Tracker">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;500;700&family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#e4ddd0; --panel:#f2ede3; --panel2:#ebe4d7; --line:#c4b69c; --text:#2b2419; --muted:#6a5d47;
+  --title:#9a4c00; --red:#b8261b; --yellow:#8a6d00; --green:#1c7229; --focus:#9a4c00;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#241f18; --panel:#332b21; --panel2:#2c251c; --line:#54462f; --text:#eadfc8; --muted:#b0a283;
+    --title:#ff981f; --red:#ff5245; --yellow:#f3d51c; --green:#45d257; --focus:#ff981f; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#241f18; --panel:#332b21; --panel2:#2c251c; --line:#54462f; --text:#eadfc8; --muted:#b0a283;
+  --title:#ff981f; --red:#ff5245; --yellow:#f3d51c; --green:#45d257; --focus:#ff981f; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 "Alegreya Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:18px 14px 48px}
+h1{font-family:"Pixelify Sans","Courier New",monospace;font-weight:700;color:var(--title);font-size:clamp(1.6rem,6vw,2.3rem);line-height:1.05;margin:4px 0 4px;letter-spacing:.01em}
+.sub{color:var(--muted);margin:0 0 16px;font-size:.95rem}
+.panel{background:var(--panel);border:2px solid var(--line);border-radius:6px;padding:12px}
+.sync label{display:block;font-weight:700;margin-bottom:6px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+input,select,textarea,button{font:inherit;color:var(--text)}
+input[type=text],input[type=search],select,textarea{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:8px 10px;min-height:42px}
+input[type=text]{flex:1 1 180px;min-width:0}
+textarea{width:100%;min-height:90px;font-size:.85rem;margin-top:8px}
+button{background:var(--title);color:#1b1309;border:0;border-radius:4px;padding:8px 14px;min-height:42px;font-weight:700;cursor:pointer}
+button.ghost{background:transparent;color:var(--text);border:1px solid var(--line);font-weight:500}
+button:disabled{opacity:.6;cursor:progress}
+a.btn{display:inline-flex;align-items:center;min-height:42px;padding:8px 14px;border:1px solid var(--line);border-radius:4px;color:var(--text);text-decoration:none;font-weight:500}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.msg{margin:10px 0 0;font-size:.93rem}
+.msg.err{color:var(--red)}
+.msg.ok{color:var(--green)}
+.alt{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
+.alt summary{cursor:pointer;color:var(--title);font-weight:700;min-height:32px;display:flex;align-items:center}
+.sync a,a.inline{color:var(--title)}
+.steps{margin:10px 0 0;padding-left:1.3em;font-size:.93rem}.steps li{margin:2px 0}
+.url{display:inline-block;margin-top:4px;padding:4px 6px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;font-size:.8rem;overflow-wrap:anywhere;user-select:all;-webkit-user-select:all}
+a.btn.primary{background:var(--title);color:#1b1309;border-color:var(--title);font-weight:700}
+.fallback{margin-top:12px;border-top:1px dashed var(--line);padding-top:12px}
+.fallback p{margin:0 0 8px;font-size:.93rem}
+.hint{color:var(--muted);font-size:.85rem;margin:8px 0 0}
+.tally{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0 10px}
+.tally button{background:var(--panel);color:var(--text);border:2px solid var(--line);text-align:left;padding:8px 10px;line-height:1.15;font-weight:500}
+.tally button b{display:block;font-family:"Pixelify Sans",monospace;font-size:1.5rem;font-weight:500}
+.tally button[data-s=c] b{color:var(--green)}
+.tally button[data-s=p] b{color:var(--yellow)}
+.tally button[data-s=n] b{color:var(--red)}
+.tally button[aria-pressed=true]{border-color:var(--title);background:var(--panel2)}
+.bar{height:6px;background:var(--panel2);border:1px solid var(--line);border-radius:3px;overflow:hidden;margin-bottom:14px}
+.bar i{display:block;height:100%;background:var(--green);width:0;transition:width .4s}
+.filters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.filters input{grid-column:1/-1;width:100%}
+.count{color:var(--muted);font-size:.9rem;margin:0 0 6px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.linkish{background:none;border:0;color:var(--title);padding:0;min-height:0;font-weight:500;text-decoration:underline;cursor:pointer}
+ol.list{list-style:none;margin:0;padding:0;border:2px solid var(--line);border-radius:6px;background:var(--panel);overflow:hidden}
+.q{display:grid;grid-template-columns:2.6rem 1fr auto;align-items:center;gap:6px 10px;padding:9px 10px;border-top:1px solid var(--line)}
+.q:first-child{border-top:0}
+.q.open{background:var(--panel2)}
+.num{font-family:"Pixelify Sans",monospace;color:var(--muted);text-align:right;font-size:.95rem}
+button.name{background:none;border:0;padding:4px 0;min-height:0;text-align:left;font-weight:700;overflow-wrap:anywhere;cursor:pointer;display:flex;gap:6px;align-items:baseline}
+button.name::after{content:"";flex:none;width:.45em;height:.45em;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg) translateY(-2px);margin-left:2px;transition:transform .15s}
+.q.open button.name::after{transform:rotate(225deg) translateY(-1px)}
+.name.c{color:var(--green)} .name.p{color:var(--yellow)} .name.n{color:var(--red)}
+.q select{min-height:38px;padding:6px 8px;font-size:.9rem;border-width:2px;max-width:128px}
+.q select.c{border-color:var(--green)} .q select.p{border-color:var(--yellow)} .q select.n{border-color:var(--red)}
+.detail{grid-column:2/-1;padding:2px 0 4px}
+.detail dl{display:flex;gap:22px;margin:0 0 8px}
+.detail dt{color:var(--muted);font-size:.8rem}
+.detail dd{margin:0;font-weight:500}
+.links{display:flex;gap:8px;flex-wrap:wrap}
+.links a{display:inline-flex;align-items:center;min-height:38px;padding:6px 12px;border:1px solid var(--line);border-radius:4px;color:var(--title);font-weight:700;text-decoration:none;background:var(--panel)}
+.empty{padding:24px 14px;text-align:center;color:var(--muted)}
+.foot{color:var(--muted);font-size:.82rem;margin-top:14px}
+.foot a{color:var(--muted)}
+@media (min-width:640px){
+  .filters{grid-template-columns:2fr 1fr 1fr}
+  .filters input{grid-column:auto}
+  .q{grid-template-columns:3rem 1fr 9rem}
+}
+@media (prefers-reduced-motion:reduce){.bar i,button.name::after{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Optimal Quest Tracker</h1>
+  <p class="sub">Every quest in the OSRS Wiki optimal quest guide order, with your progress saved on this device.</p>
+
+  <section class="panel sync" aria-labelledby="syncLabel">
+    <label id="syncLabel" for="rsn">Sync from your RuneScape name</label>
+    <div class="row">
+      <input type="text" id="rsn" placeholder="e.g. Zezima" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button id="syncBtn" type="button">Sync quests</button>
+    </div>
+    <p class="hint">Uses <a href="https://www.runeprofile.com/" target="_blank" rel="noopener">RuneProfile</a>. Install the RuneProfile plugin in RuneLite and log in once so your quests upload.</p>
+    <p class="msg" id="syncMsg" role="status" aria-live="polite"></p>
+    <details class="alt" id="wikiAlt">
+      <summary>Use WikiSync instead</summary>
+      <ol class="steps">
+        <li>Tap <a class="inline" id="openData" href="#" target="_blank" rel="noopener">open my WikiSync data</a>. A page full of text opens in a new tab.</li>
+        <li>Select all of that text and copy it.</li>
+        <li>Come back and paste it into the box. It syncs as soon as you paste.</li>
+      </ol>
+      <p class="hint">Link: <span class="url" id="urlText">Enter your name above</span></p>
+      <textarea id="paste" placeholder="Paste your WikiSync data here"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button id="applyPaste" type="button" class="ghost">Apply</button>
+        <button id="clipPaste" type="button" class="ghost">Paste from clipboard</button>
+      </div>
+    </details>
+  </section>
+
+  <div class="tally" role="group" aria-label="Filter by status">
+    <button type="button" data-s="c" aria-pressed="false"><b id="tc">0</b>Complete</button>
+    <button type="button" data-s="p" aria-pressed="false"><b id="tp">0</b>In progress</button>
+    <button type="button" data-s="n" aria-pressed="false"><b id="tn">0</b>Not started</button>
+  </div>
+  <div class="bar" aria-hidden="true"><i id="barFill"></i></div>
+
+  <div class="filters">
+    <input type="search" id="search" placeholder="Search quests" aria-label="Search quests">
+    <select id="fDiff" aria-label="Filter by difficulty">
+      <option value="">All difficulties</option>
+      <option value="N">Novice</option><option value="I">Intermediate</option><option value="E">Experienced</option>
+      <option value="M">Master</option><option value="G">Grandmaster</option><option value="S">Special</option>
+    </select>
+    <select id="fLen" aria-label="Filter by length">
+      <option value="">All lengths</option>
+      <option value="VS">Very Short</option><option value="S">Short</option><option value="M">Medium</option>
+      <option value="L">Long</option><option value="VL">Very Long</option>
+    </select>
+  </div>
+
+  <p class="count"><span id="shown"></span><button type="button" class="linkish" id="clearF" hidden>Clear filters</button></p>
+  <ol class="list" id="list"></ol>
+
+  <p class="foot">Quest order follows the <a href="https://oldschool.runescape.wiki/w/Optimal_quest_guide" target="_blank" rel="noopener">OSRS Wiki optimal quest guide</a> (training steps, miniquests and diaries left out). Quest names, difficulty and length are from the <a href="https://oldschool.runescape.wiki/" target="_blank" rel="noopener">Old School RuneScape Wiki</a>, used under <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/" target="_blank" rel="noopener">CC BY-NC-SA 3.0</a>. Quest sync by <a href="https://www.runeprofile.com/" target="_blank" rel="noopener">RuneProfile</a>. Fan-made and not affiliated with Jagex. Old School RuneScape is a trademark of Jagex Ltd.</p>
+  <p class="foot"><button type="button" class="linkish" id="resetAll">Reset all statuses</button></p>
+</div>
+
+<script>
+const ROWS = [["Learning the Ropes","N","VS"],["Cook's Assistant","N","VS"],["Sheep Shearer","N","VS"],["Misthalin Mystery","N","S"],["Prince Ali Rescue","N","S"],["The Restless Ghost","N","S"],["Rune Mysteries","N","S"],["Imp Catcher","N","S"],["Witch's Potion","N","VS"],["Gertrude's Cat","N","VS"],["Children of the Sun","N","VS"],["Dwarf Cannon","N","S"],["Waterfall Quest","I","S"],["Tree Gnome Village","I","S"],["Doric's Quest","N","VS"],["Witch's House","I","VS"],["The Knight's Sword","I","S"],["The Tourist Trap","I","M"],["Black Knights' Fortress","I","VS"],["Druidic Ritual","N","VS"],["Recruitment Drive","N","S"],["Goblin Diplomacy","N","VS"],["Sleeping Giants","I","VS"],["Fight Arena","I","S"],["Plague City","N","VS"],["Monk's Friend","N","VS"],["Hazeel Cult","N","VS"],["Sheep Herder","N","S"],["Biohazard","N","S"],["Tower of Life","N","M"],["Tribal Totem","I","VS"],["Death Plateau","N","S"],["Merlin's Crystal","I","S"],["Holy Grail","I","S"],["Murder Mystery","N","S"],["The Grand Tree","I","M"],["A Ruff Situation","N","S"],["Rag and Bone Man I","N","S"],["Priest in Peril","N","S"],["Nature Spirit","I","S"],["Ghosts Ahoy","I","M"],["Making History","I","S"],["The Ides of Milk","N","S"],["The Lost Tribe","I","S"],["Death to the Dorgeshuun","I","M"],["Elemental Workshop I","N","VS"],["Icthlarin's Little Helper","I","M"],["The Golem","I","S"],["The Ribbiting Tale of a Lily Pad Labour Dispute","N","VS"],["Lost City","I","S"],["Fairytale I - Growing Pains","I","M"],["Recipe for Disaster/Another Cook's Quest","S","S"],["Recipe for Disaster/Freeing the Goblin generals","S","S"],["Sea Slug","I","S"],["Pandemonium","N","S"],["Prying Times","I","S"],["Current Affairs","N","S"],["Fishing Contest","N","VS"],["Recipe for Disaster/Freeing the Mountain Dwarf","S","S"],["Mountain Daughter","I","M"],["The Feud","I","M"],["Ratcatchers","I","M"],["Scorpion Catcher","I","S"],["The Dig Site","I","M"],["Elemental Workshop II","I","S"],["A Soul's Bane","I","S"],["X Marks the Spot","N","VS"],["Pirate's Treasure","N","VS"],["Client of Kourend","N","S"],["The Queen of Thieves","I","VS"],["The Depths of Despair","I","S"],["A Porcine of Interest","N","VS"],["Twilight's Promise","I","S"],["Shield of Arrav","N","S"],["Ethically Acquired Antiquities","N","S"],["Bone Voyage","I","S"],["Watchtower","I","M"],["The Giant Dwarf","I","M"],["Forgettable Tale...","I","L"],["Another Slice of H.A.M.","I","S"],["Vampyre Slayer","I","VS"],["Ernest the Chicken","N","VS"],["Wanted!","I","M"],["Demon Slayer","N","S"],["Shadow of the Storm","I","M"],["Animal Magnetism","I","M"],["Creature of Fenkenstrain","I","M"],["Big Chompy Bird Hunting","I","S"],["Jungle Potion","N","S"],["Shilo Village","I","M"],["Zogre Flesh Eaters","I","S"],["Observatory Quest","I","S"],["Horror from the Deep","I","S"],["Spirits of the Elid","I","S"],["Garden of Tranquillity","I","L"],["Enlightened Journey","I","S"],["Romeo & Juliet","N","S"],["Tears of Guthix","I","VS"],["Death on the Isle","I","M"],["In Search of the Myreque","I","S"],["Shades of Mort'ton","I","S"],["In Aid of the Myreque","I","M"],["Troll Stronghold","I","S"],["Troll Romance","I","S"],["Darkness of Hallowvale","E","L"],["Underground Pass","E","L"],["Regicide","E","L"],["Dragon Slayer I","E","M"],["The Fremennik Trials","I","M"],["The Fremennik Isles","E","M"],["Recipe for Disaster/Freeing Evil Dave","S","M"],["Recipe for Disaster/Freeing Pirate Pete","S","M"],["Tai Bwo Wannai Trio","I","M"],["Contact!","E","S"],["Temple of Ikov","I","M"],["The Eyes of Glouphrie","I","M"],["Temple of the Eye","I","S"],["One Small Favour","E","L"],["The Ascent of Arceuus","I","S"],["Tale of the Righteous","I","S"],["Between a Rock...","E","M"],["The Forsaken Tower","I","S"],["The Slug Menace","I","M"],["Getting Ahead","I","S"],["Cold War","I","M"],["The Hand in the Sand","I","S"],["Enakhra's Lament","E","M"],["Eadgar's Ruse","I","M"],["My Arm's Big Adventure","E","M"],["The Garden of Death","I","S"],["Rag and Bone Man II","E","M"],["Rum Deal","E","M"],["Cabin Fever","E","S"],["Scrambled!","I","S"],["Recipe for Disaster/Freeing the Lumbridge Guide","S","S"],["Recipe for Disaster/Freeing Skrach Uglogwee","S","M"],["Heroes' Quest","E","M"],["Throne of Miscellania","E","M"],["Royal Trouble","E","M"],["Haunted Mine","E","S"],["Monkey Madness I","M","L"],["Roving Elves","E","S"],["Mourning's End Part I","M","M"],["Mourning's End Part II","M","L"],["Desert Treasure I","M","L"],["Family Crest","E","M"],["What Lies Below","I","S"],["Below Ice Mountain","N","S"],["Defender of Varrock","E","M"],["Eagles' Peak","N","S"],["At First Light","I","S"],["A Tail of Two Cats","I","M"],["Perilous Moons","M","M"],["Meat and Greet","E","S"],["Legends' Quest","M","L"],["Land of the Goblins","E","M"],["Recipe for Disaster/Freeing Sir Amik Varze","S","M"],["Olaf's Quest","I","S"],["A Kingdom Divided","E","L"],["A Taste of Hope","E","M"],["The Great Brain Robbery","E","M"],["Troubled Tortugans","E","M"],["Shadows of Custodia","E","S"],["The Heart of Darkness","E","M"],["Fairytale II - Cure a Queen","E","M"],["Recipe for Disaster/Freeing King Awowogei","S","L"],["Recipe for Disaster/Defeating the Culinaromancer","S","S"],["The Path of Glouphrie","E","M"],["Lunar Diplomacy","E","L"],["King's Ransom","E","M"],["Swan Song","M","M"],["Devious Minds","E","S"],["Grim Tales","M","M"],["Dream Mentor","M","M"],["The Curse of Arrav","M","M"],["The Red Reef","E","M"],["The Fremennik Exiles","M","M"],["Sins of the Father","M","L"],["Beneath Cursed Sands","M","M"],["Making Friends with My Arm","M","M"],["Monkey Madness II","G","VL"],["A Night at the Theatre","M","M"],["Dragon Slayer II","G","VL"],["Secrets of the North","M","M"],["The Final Dawn","M","L"],["Fallen From Grace","E","S"],["Song of the Elves","G","VL"],["While Guthix Sleeps","G","VL"],["Desert Treasure II - The Fallen Empire","G","VL"],["The Blood Moon Rises","G","VL"],["Clock Tower","N","VS"],["The Corsair Curse","I","S"],["Crab Quest","I","S"]];
+const DIFF = {N:"Novice",I:"Intermediate",E:"Experienced",M:"Master",G:"Grandmaster",S:"Special"};
+const LEN = {VS:"Very Short",S:"Short",M:"Medium",L:"Long",VL:"Very Long"};
+const STAT = {c:"Complete",p:"In progress",n:"Not started"};
+const KEY = "osrs-oqg-v1";
+const quests = ROWS.map((r,i)=>({no:i+1,name:r[0],d:r[1],l:r[2]}));
+
+let state = {s:{}, rsn:""};
+try { const raw = localStorage.getItem(KEY); if (raw) state = Object.assign(state, JSON.parse(raw)); } catch(e) {}
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {} }
+const st = q => state.s[q.no] || "n";
+
+const $ = id => document.getElementById(id);
+const listEl = $("list");
+let statusFilter = "";
+const openSet = new Set();
+const wiki = n => "https://oldschool.runescape.wiki/w/" + encodeURIComponent(n.replace(/ /g,"_")).replace(/%2F/g,"/").replace(/%27/g,"'");
+
+function esc(t){ const d=document.createElement("div"); d.textContent=t; return d.innerHTML; }
+
+function render(){
+  const term = $("search").value.trim().toLowerCase();
+  const fd = $("fDiff").value, fl = $("fLen").value;
+  const rows = quests.filter(q =>
+    (!term || q.name.toLowerCase().includes(term)) &&
+    (!fd || q.d === fd) && (!fl || q.l === fl) &&
+    (!statusFilter || st(q) === statusFilter));
+  if (!rows.length){
+    listEl.innerHTML = '<li class="empty">No quests match these filters.</li>';
+  } else {
+    listEl.innerHTML = rows.map(q => {
+      const s = st(q);
+      const open = openSet.has(q.no);
+      return `<li class="q${open?" open":""}"><span class="num">${q.no}</span>
+        <button type="button" class="name ${s}" data-toggle="${q.no}" aria-expanded="${open}" aria-controls="d${q.no}">${esc(q.name)}</button>
+        <select class="${s}" data-no="${q.no}" aria-label="Status for ${esc(q.name)}">
+          ${Object.entries(STAT).map(([k,v])=>`<option value="${k}"${k===s?" selected":""}>${v}</option>`).join("")}
+        </select>
+        <div class="detail" id="d${q.no}"${open?"":" hidden"}>
+          <dl><div><dt>Difficulty</dt><dd>${DIFF[q.d]}</dd></div><div><dt>Length</dt><dd>${LEN[q.l]}</dd></div></dl>
+          <div class="links"><a href="${wiki(q.name)}" target="_blank" rel="noopener">Quest guide</a><a href="${wiki(q.name)}/Quick_guide" target="_blank" rel="noopener">Quick guide</a></div>
+        </div></li>`;
+    }).join("");
+  }
+  const active = term || fd || fl || statusFilter;
+  $("shown").textContent = active ? `Showing ${rows.length} of ${quests.length}` : `${quests.length} quests`;
+  $("clearF").hidden = !active;
+  tally();
+}
+
+function tally(){
+  let c=0,p=0,n=0;
+  quests.forEach(q=>{ const s=st(q); if(s==="c")c++; else if(s==="p")p++; else n++; });
+  $("tc").textContent=c; $("tp").textContent=p; $("tn").textContent=n;
+  $("barFill").style.width = (c/quests.length*100).toFixed(1)+"%";
+}
+
+listEl.addEventListener("click", e => {
+  const b = e.target.closest("[data-toggle]"); if (!b) return;
+  const no = +b.dataset.toggle, li = b.closest(".q"), d = li.querySelector(".detail");
+  const open = !openSet.has(no);
+  open ? openSet.add(no) : openSet.delete(no);
+  li.classList.toggle("open", open); d.hidden = !open; b.setAttribute("aria-expanded", String(open));
+});
+listEl.addEventListener("change", e => {
+  const sel = e.target.closest("select"); if (!sel) return;
+  const no = +sel.dataset.no, v = sel.value;
+  if (v === "n") delete state.s[no]; else state.s[no] = v;
+  save();
+  sel.className = v;
+  sel.parentElement.querySelector(".name").className = "name " + v;
+  tally();
+  if (statusFilter && statusFilter !== v) render();
+});
+
+["search","fDiff","fLen"].forEach(id => $(id).addEventListener("input", render));
+document.querySelectorAll(".tally button").forEach(b => b.addEventListener("click", () => {
+  statusFilter = statusFilter === b.dataset.s ? "" : b.dataset.s;
+  document.querySelectorAll(".tally button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.s === statusFilter)));
+  render();
+}));
+$("clearF").addEventListener("click", () => {
+  $("search").value=""; $("fDiff").value=""; $("fLen").value=""; statusFilter="";
+  document.querySelectorAll(".tally button").forEach(x => x.setAttribute("aria-pressed","false"));
+  render();
+});
+$("resetAll").addEventListener("click", () => {
+  if (!confirm("Set every quest back to Not started?")) return;
+  state.s = {}; save(); render();
+});
+
+/* ---------- WikiSync ---------- */
+const norm = s => s.toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g," ").trim().replace(/^the /,"");
+const RFD_KEYS = [["another cook","Another Cook's Quest"],["goblin","Goblin generals"],["wartface","Goblin generals"],["mountain dwarf","Mountain Dwarf"],["dwarf","Mountain Dwarf"],["evil dave","Evil Dave"],["pirate pete","Pirate Pete"],["lumbridge guide","Lumbridge Guide"],["skrach","Skrach Uglogwee"],["amik","Sir Amik Varze"],["awowogei","King Awowogei"],["culinaromancer","Culinaromancer"],["final","Culinaromancer"]];
+const ALIAS = {"dragon slayer":"Dragon Slayer I","desert treasure":"Desert Treasure I","monkey madness":"Monkey Madness I","desert treasure ii":"Desert Treasure II - The Fallen Empire","fairytale i growing pains":"Fairytale I - Growing Pains","fairytale ii cure a queen":"Fairytale II - Cure a Queen"};
+const byNorm = new Map(quests.map(q => [norm(q.name), q]));
+
+function matchQuest(key){
+  const n = norm(key);
+  if (n.startsWith("recipe for disaster")){
+    const rest = n.replace("recipe for disaster","");
+    if (!rest.trim()) return null;
+    for (const [k,label] of RFD_KEYS) if (rest.includes(k)) return quests.find(q => q.name.startsWith("Recipe for Disaster/") && q.name.includes(label));
+    return null;
+  }
+  if (byNorm.has(n)) return byNorm.get(n);
+  if (ALIAS[n]) return byNorm.get(norm(ALIAS[n]));
+  let best=null;
+  for (const [qn,q] of byNorm) if ((n.startsWith(qn+" ") || qn.startsWith(n+" ")) && (!best || qn.length > norm(best.name).length)) best=q;
+  return best;
+}
+
+function pairsFromText(txt){
+  txt = txt.replace(/[\u201C\u201D\u2033]/g,'"').replace(/[\u2018\u2019]/g,"'");
+  // 1) proper JSON
+  const a = txt.indexOf("{"), b = txt.lastIndexOf("}");
+  if (a !== -1 && b > a){
+    try {
+      const j = JSON.parse(txt.slice(a,b+1));
+      const qs = j.quests || j;
+      if (qs && typeof qs === "object" && !Array.isArray(qs)){
+        const out = Object.entries(qs).filter(([k,v]) => [0,1,2,"0","1","2"].includes(v)).map(([k,v]) => [k, +v]);
+        if (out.length) return {pairs:out, user:j.username||""};
+      }
+    } catch(err) {}
+  }
+  // 2) anything that looks like  "Quest name": 2   (handles pretty-printed, cut-off or viewer-copied text)
+  let region = txt;
+  const qi = txt.search(/"?quests"?\s*[:\t]/i);
+  if (qi !== -1) region = txt.slice(qi);
+  const out = [], re = /"?([A-Za-z0-9'!&.,\/\- ]{3,90}?)"?\s*[:\t=]\s*"?([012])"?(?=\s*[,}\n\r]|\s*$)/g;
+  let m; while ((m = re.exec(region))) out.push([m[1].trim(), +m[2]]);
+  const um = txt.match(/"?username"?\s*[:\t]\s*"?([^",\n\r}]+)/i);
+  return {pairs:out, user: um ? um[1].trim() : ""};
+}
+
+function applyPairs(pairs, user){
+  let matched=0, c=0, p=0; const seen = new Set();
+  for (const [k,v] of pairs){
+    const q = matchQuest(k);
+    if (!q || seen.has(q.no)) continue;
+    seen.add(q.no);
+    const val = v===2 ? "c" : v===1 ? "p" : "n";
+    if (val==="n") delete state.s[q.no]; else state.s[q.no]=val;
+    matched++; if(val==="c")c++; if(val==="p")p++;
+  }
+  return {matched,c,p};
+}
+
+function setMsg(t,cls){ const m=$("syncMsg"); m.textContent=t; m.className="msg "+(cls||""); }
+function dataUrl(name){ return "https://sync.runescape.wiki/runelite/player/"+encodeURIComponent(name)+"/STANDARD"; }
+function updateLink(){
+  const n = $("rsn").value.trim();
+  $("openData").href = n ? dataUrl(n) : "#";
+  $("urlText").textContent = n ? dataUrl(n) : "Enter your name above";
+  state.rsn = n; save();
+}
+
+function applyText(txt){
+  txt = (txt||"").trim();
+  if (!txt){ setMsg("Paste your WikiSync data into the box first.","err"); return; }
+  if (/error|not found|no data|403|forbidden/i.test(txt) && txt.length < 400){
+    setMsg("That page shows an error rather than your data. Check the name is spelt exactly as in game, and that WikiSync is on in RuneLite and you've logged in since turning it on.","err"); return;
+  }
+  const {pairs,user} = pairsFromText(txt);
+  const r = applyPairs(pairs,user);
+  if (!r.matched){
+    setMsg(`No quests found in what was pasted (${txt.length.toLocaleString()} characters). Make sure you copied the whole page from the WikiSync tab, not the link.`,"err"); return;
+  }
+  save(); render();
+  $("paste").value = "";
+  setMsg(`Synced${user?" "+user:""}: ${r.c} complete, ${r.p} in progress, ${r.matched-r.c-r.p} not started.`,"ok");
+}
+
+$("rsn").addEventListener("input", updateLink);
+$("openData").addEventListener("click", e => {
+  if (!$("rsn").value.trim()){ e.preventDefault(); setMsg("Enter your RuneScape name first.","err"); $("rsn").focus(); }
+});
+$("applyPaste").addEventListener("click", () => applyText($("paste").value));
+$("paste").addEventListener("paste", () => setTimeout(() => applyText($("paste").value), 0));
+$("clipPaste").addEventListener("click", async () => {
+  try { const t = await navigator.clipboard.readText(); $("paste").value = t; applyText(t); }
+  catch(err){ setMsg("Your browser didn't allow reading the clipboard here. Long-press the box above and choose Paste instead.","err"); }
+});
+
+
+/* ---------- RuneProfile ---------- */
+const RP = "https://api.runeprofile.com/v1/accounts/";
+function stateOf(v){
+  if (v === null || v === undefined) return null;
+  if (typeof v === "boolean") return v ? 2 : 0;
+  if (typeof v === "number") return [0,1,2].includes(v) ? v : null;
+  if (typeof v === "string"){
+    const s = v.toLowerCase().replace(/[^a-z]/g,"");
+    if (/^(finished|complete|completed|done|2)$/.test(s)) return 2;
+    if (/^(inprogress|started|progress|1)$/.test(s)) return 1;
+    if (/^(notstarted|none|0|unstarted)$/.test(s)) return 0;
+  }
+  if (typeof v === "object" && !Array.isArray(v)){
+    for (const k of ["state","status","progress","completed","complete","finished"]) if (k in v){ const r = stateOf(v[k]); if (r !== null) return r; }
+  }
+  return null;
+}
+// Walks any JSON shape and pulls out [questName, 0|1|2] pairs
+function pairsFromJson(node, out = []){
+  if (Array.isArray(node)){ node.forEach(n => pairsFromJson(n, out)); return out; }
+  if (node && typeof node === "object"){
+    const nm = node.name ?? node.title ?? node.quest ?? node.questName;
+    if (typeof nm === "string"){ const st = stateOf(node); if (st !== null && matchQuest(nm)) out.push([nm, st]); }
+    for (const [k,v] of Object.entries(node)){
+      const st = stateOf(v);
+      if (st !== null && typeof v !== "object" && matchQuest(k)) out.push([k, st]);
+      else if (v && typeof v === "object") pairsFromJson(v, out);
+    }
+  }
+  return out;
+}
+async function getJson(url){
+  const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 12000);
+  try { const r = await fetch(url, {signal:ctrl.signal, headers:{Accept:"application/json"}}); return {status:r.status, body: r.ok ? await r.json() : null}; }
+  finally { clearTimeout(t); }
+}
+async function syncRuneProfile(){
+  const name = $("rsn").value.trim();
+  if (!name){ setMsg("Enter your RuneScape name first.","err"); $("rsn").focus(); return; }
+  const btn = $("syncBtn"); btn.disabled = true; btn.textContent = "Syncing…"; setMsg("");
+  try {
+    const u = encodeURIComponent(name);
+    let res = await getJson(RP + u + "/quests");
+    let pairs = res.body ? pairsFromJson(res.body) : [];
+    if (!pairs.length && res.status !== 404){ const full = await getJson(RP + u + "/full"); if (full.body) pairs = pairsFromJson(full.body); res = full.body ? full : res; }
+    if (res.status === 404){ setMsg(`RuneProfile has no profile for ${name}. Install the RuneProfile plugin in RuneLite, log in, then try again. Or use WikiSync below.`,"err"); return; }
+    if (!pairs.length){ setMsg(res.body ? "RuneProfile answered, but no quest data came back. Open the RuneProfile panel in RuneLite so it uploads, then try again." : `RuneProfile didn't respond (error ${res.status}). Try again shortly, or use WikiSync below.`,"err"); return; }
+    const r = applyPairs(pairs);
+    save(); render();
+    setMsg(`Synced ${name} from RuneProfile: ${r.c} complete, ${r.p} in progress, ${r.matched-r.c-r.p} not started.`,"ok");
+  } catch(err){
+    setMsg(err && err.name === "AbortError" ? "RuneProfile took too long to answer. Try again in a moment." : "Couldn't reach RuneProfile. Check your connection, or use WikiSync below.","err");
+  } finally { btn.disabled = false; btn.textContent = "Sync quests"; }
+}
+$("syncBtn").addEventListener("click", syncRuneProfile);
+$("rsn").addEventListener("keydown", e => { if (e.key === "Enter") syncRuneProfile(); });
+
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+
+$("rsn").value = state.rsn || "";
+updateLink();
+render();
+</script>
+</body>
+</html>
