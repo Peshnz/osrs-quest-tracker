@@ -45,8 +45,9 @@ public class MainActivity extends Activity {
         TextView help = new TextView(this);
         help.setText("Show the floating timer, open OSRS, and tap ▶ when the rift opens. "
                 + "Tap P when a portal appears to resync. Drag the time to move the strip. ✕ closes it.\n\n"
-                + "Auto-start: while waiting for a game, tap A on the strip and allow screen capture (choose Entire screen). "
-                + "It learns the grey altar icons, then starts the timer when the real altars appear and stops when the game ends. Tap A again to turn it off.");
+                + "Auto-start: tap A on the strip and allow screen capture (choose Entire screen). "
+                + "The timer starts when the altar symbols appear, resyncs every time the orange portal spiral appears, "
+                + "and stops when the symbols disappear after the game. Long-press A to move the boxes it watches, then tap \u2713 to save.");
         help.setPadding(0, dp(8), 0, dp(16));
         help.setTextColor(Color.parseColor("#9AA3B5"));
         col.addView(help);

@@ -78,11 +78,10 @@ public class OverlayService extends Service {
     private ImageReader reader;
     private int capW, capH;            // capture size (half of screen)
     private int scrW, scrH;            // real screen size
-    private float c1x, c2x, cy, half;  // circle positions as fractions of screen
-    private boolean armed;
-    private float[][] baseline;        // learned "waiting" look of each circle
-    private int changedCount, idleCount;
-    private boolean lastIdle = true;
+    private float c1x, c1y, c2x, c2y, half; // circle centres as fractions of the screen
+    private boolean armed, adjusting;
+    private int presentCount, emptyCount;
+    private boolean seenEmpty;              // only start after the circles have been empty
     private View boxes;
 
     private final Runnable tick = new Runnable() {
@@ -152,9 +151,12 @@ public class OverlayService extends Service {
         open = p.getInt("open", 25) * 1000L;
         beepOn = p.getBoolean("beep", true);
         // Defaults measured from a 2000x923 landscape screenshot of the GOTR panel
-        c1x = p.getFloat("c1x", 13.5f) / 100f;
-        c2x = p.getFloat("c2x", 20.75f) / 100f;
-        cy = p.getFloat("cy", 13.0f) / 100f;
+        c1x = p.getFloat("c1x", 0.135f);
+        c1y = p.getFloat("c1y", 0.13f);
+        c2x = p.getFloat("c2x", 0.2075f);
+        c2y = p.getFloat("c2y", 0.13f);
+        pxf = p.getFloat("px", 0.2815f);
+        pyf = p.getFloat("py", 0.192f);
         half = 0.009f;
     }
 
@@ -202,6 +204,7 @@ public class OverlayService extends Service {
         toggle.setOnClickListener(v -> { if (running) stopRun(); else startRun(false); });
         auto = button("A", Color.TRANSPARENT, MUTED, true);
         auto.setOnClickListener(v -> onAutoTapped());
+        auto.setOnLongClickListener(v -> { startAdjust(); return true; });
 
         close = new TextView(this);
         close.setText("✕");
@@ -344,15 +347,18 @@ public class OverlayService extends Service {
     }
 
     // ================= auto-start =================
+    // Spot 0 and 1: the two altar circles. They are empty between games and show symbols during a game.
+    // Spot 2: under the guardian helmet, where the orange portal spiral appears while a portal is open.
 
     private void onAutoTapped() {
+        if (adjusting) { finishAdjust(); return; }
         if (armed) { disarm(); toast("Auto-start off"); return; }
-        if (projection == null) {
-            Intent i = new Intent(this, CaptureActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(i);
-            return;
-        }
+        if (projection == null) { askCapture(); return; }
         arm();
+    }
+
+    private void askCapture() {
+        startActivity(new Intent(this, CaptureActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     }
 
     private void onCaptureResult(Intent intent) {
@@ -372,7 +378,6 @@ public class OverlayService extends Service {
                 @Override public void onStop() { h.post(() -> { stopCapture(); disarm(); }); }
             }, h);
             setupDisplay();
-            // give the capture a moment to deliver frames, then arm
             h.postDelayed(this::arm, 600);
         } catch (Exception e) {
             toast("Couldn't start screen capture: " + e.getMessage());
@@ -381,11 +386,11 @@ public class OverlayService extends Service {
     }
 
     private void readScreenSize() {
-        DisplayMetrics m = new DisplayMetrics();
         if (Build.VERSION.SDK_INT >= 30) {
             Rect r = wm.getMaximumWindowMetrics().getBounds();
             scrW = r.width(); scrH = r.height();
         } else {
+            DisplayMetrics m = new DisplayMetrics();
             wm.getDefaultDisplay().getRealMetrics(m);
             scrW = m.widthPixels; scrH = m.heightPixels;
         }
@@ -414,65 +419,73 @@ public class OverlayService extends Service {
         if (projection != null) { try { projection.stop(); } catch (Exception ignored) {} projection = null; }
     }
 
-    /** Shows where it's looking for 3 s, then learns the current (waiting) look of the circles. */
+    /** Flash the three spots for 3 s so you can check them, then start watching. */
     private void arm() {
         if (projection == null) return;
         armed = false;
         h.removeCallbacks(watch);
         auto.setTextColor(WARN);
-        ((GradientDrawable) auto.getBackground()).setColor(Color.TRANSPARENT);
-        showBoxes(true);
-        toast("Learning the waiting-room altar icons...");
+        showBoxes(true, false);
         h.postDelayed(() -> {
-            showBoxes(false);
-            h.postDelayed(() -> {
-                float[][] s = sample();
-                if (s == null) { toast("No screen picture yet, tap A again"); auto.setTextColor(MUTED); return; }
-                baseline = s;
-                armed = true;
-                lastIdle = true;
-                changedCount = 0;
-                idleCount = 0;
-                setButton(auto, "A", AUTO, Color.parseColor("#06121F"));
-                toast("Auto-start armed");
-                h.post(watch);
-            }, 700);
+            showBoxes(false, false);
+            armed = true;
+            seenEmpty = false;
+            presentCount = 0;
+            emptyCount = 0;
+            portalWasOn = true; // don't resync on a portal that is already open when arming
+            setButton(auto, "A", AUTO, Color.parseColor("#06121F"));
+            toast("Auto-start armed");
+            h.post(watch);
         }, 3000);
     }
 
     private void disarm() {
         armed = false;
         h.removeCallbacks(watch);
-        showBoxes(false);
+        showBoxes(false, false);
         setButton(auto, "A", Color.TRANSPARENT, MUTED);
     }
+
+    private boolean portalWasOn;
+    private int portalOnCount;
 
     private void poll() {
         if (!armed) return;
         readScreenSize();
         if ((scrW > scrH) != (capW > capH)) { setupDisplay(); return; } // rotated: rebuild capture
-        float[][] s = sample();
-        if (s == null || baseline == null) return;
-        float d1 = diff(s[0], baseline[0]), d2 = diff(s[1], baseline[1]);
-        // either circle switching from the grey placeholder to a real altar icon starts the game
-        boolean changed = d1 > 22 || d2 > 22;
-        boolean idle = d1 < 9 && d2 < 9;
+        float[] s = sample();
+        if (s == null) return;
+        boolean present = s[0] > 30 || s[1] > 30;  // icon detail in either circle
+        boolean empty = s[0] < 15 && s[1] < 15;    // both circles plain
+        boolean portal = s[2] > 0.08f;             // orange spiral showing
+
+        if (empty) { if (++emptyCount >= 2) seenEmpty = true; } else emptyCount = 0;
 
         if (!running) {
-            if (changed && lastIdle) {
-                if (++changedCount >= 2) { startRun(true); changedCount = 0; idleCount = 0; }
-            } else {
-                changedCount = 0;
+            if (present && seenEmpty) {
+                if (++presentCount >= 2) { startRun(true); presentCount = 0; seenEmpty = false; }
+            } else presentCount = 0;
+        } else if (startedByAuto && emptyCount >= 10) {
+            stopRun(); // symbols gone for 5 s: game over, wait for the next one
+        }
+
+        // Portal spiral just appeared: resync the cycle to it
+        if (portal) {
+            if (++portalOnCount == 2 && !portalWasOn) {
+                if (!running) startRun(true);
+                anchor = System.currentTimeMillis() - 1000; // seen twice, 0.5 s apart, plus capture lag
+                beeped = -1;
+                update();
             }
-            if (idle) lastIdle = true; else if (!changed) lastIdle = false;
-        } else if (startedByAuto) {
-            // game over: circles back to the waiting look for 8 s
-            if (idle) { if (++idleCount >= 16) { stopRun(); lastIdle = true; } } else idleCount = 0;
+            if (portalOnCount >= 2) portalWasOn = true;
+        } else {
+            portalOnCount = 0;
+            portalWasOn = false;
         }
     }
 
-    /** A 4x4 grid of average colours over the middle of each circle, so both colour and icon shape count. */
-    private float[][] sample() {
+    /** Returns [detail in circle 1, detail in circle 2, orange fraction at the portal spot]. */
+    private float[] sample() {
         if (reader == null) return null;
         Image img = null;
         try {
@@ -482,7 +495,10 @@ public class OverlayService extends Service {
             ByteBuffer buf = pl.getBuffer();
             int rs = pl.getRowStride(), ps = pl.getPixelStride();
             int w = img.getWidth(), hgt = img.getHeight();
-            return new float[][]{patch(buf, rs, ps, w, hgt, c1x), patch(buf, rs, ps, w, hgt, c2x)};
+            return new float[]{
+                    detail(buf, rs, ps, w, hgt, c1x, c1y),
+                    detail(buf, rs, ps, w, hgt, c2x, c2y),
+                    orange(buf, rs, ps, w, hgt, pxf, pyf)};
         } catch (Exception e) {
             return null;
         } finally {
@@ -490,73 +506,135 @@ public class OverlayService extends Service {
         }
     }
 
-    private float[] patch(ByteBuffer buf, int rs, int ps, int w, int hgt, float fx) {
-        final int G = 4;
-        int cx = Math.round(fx * w), cyy = Math.round(cy * hgt);
-        int r = Math.max(4, Math.round(half * w));
-        float[] out = new float[G * G * 3];
-        int[] cnt = new int[G * G];
-        for (int y = cyy - r; y < cyy + r; y++) {
-            if (y < 0 || y >= hgt) continue;
-            int gy = Math.min(G - 1, (y - (cyy - r)) * G / (2 * r));
-            for (int x = cx - r; x < cx + r; x++) {
-                if (x < 0 || x >= w) continue;
-                int gx = Math.min(G - 1, (x - (cx - r)) * G / (2 * r));
-                int i = y * rs + x * ps, c = gy * G + gx;
-                out[c * 3] += buf.get(i) & 0xff;
-                out[c * 3 + 1] += buf.get(i + 1) & 0xff;
-                out[c * 3 + 2] += buf.get(i + 2) & 0xff;
-                cnt[c]++;
+    /** Brightness spread: a plain circle is low, a symbol is high. */
+    private float detail(ByteBuffer buf, int rs, int ps, int w, int hgt, float fx, float fy) {
+        int cx = Math.round(fx * w), cy = Math.round(fy * hgt), r = Math.max(4, Math.round(half * w));
+        double sl = 0, sl2 = 0; int n = 0;
+        for (int y = Math.max(0, cy - r); y < Math.min(hgt, cy + r); y++) {
+            for (int x = Math.max(0, cx - r); x < Math.min(w, cx + r); x++) {
+                int i = y * rs + x * ps;
+                double l = 0.299 * (buf.get(i) & 0xff) + 0.587 * (buf.get(i + 1) & 0xff) + 0.114 * (buf.get(i + 2) & 0xff);
+                sl += l; sl2 += l * l; n++;
             }
         }
-        for (int c = 0; c < G * G; c++) {
-            if (cnt[c] == 0) continue;
-            out[c * 3] /= cnt[c]; out[c * 3 + 1] /= cnt[c]; out[c * 3 + 2] /= cnt[c];
-        }
-        return out;
+        if (n == 0) return 0;
+        double m = sl / n;
+        return (float) Math.sqrt(Math.max(0, sl2 / n - m * m));
     }
 
-    /** Average per-channel difference, 0 (identical) to 255. */
-    private static float diff(float[] a, float[] b) {
-        float s = 0;
-        for (int i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]);
-        return s / a.length;
+    /** Share of pixels that are portal-spiral orange. */
+    private float orange(ByteBuffer buf, int rs, int ps, int w, int hgt, float fx, float fy) {
+        int cx = Math.round(fx * w), cy = Math.round(fy * hgt), r = Math.max(4, Math.round(portalHalf * w));
+        float[] hsv = new float[3];
+        int n = 0, o = 0;
+        for (int y = Math.max(0, cy - r); y < Math.min(hgt, cy + r); y++) {
+            for (int x = Math.max(0, cx - r); x < Math.min(w, cx + r); x++) {
+                int i = y * rs + x * ps;
+                Color.RGBToHSV(buf.get(i) & 0xff, buf.get(i + 1) & 0xff, buf.get(i + 2) & 0xff, hsv);
+                n++;
+                if (hsv[0] >= 20 && hsv[0] <= 43 && hsv[1] > 0.65f && hsv[2] > 0.55f) o++;
+            }
+        }
+        return n == 0 ? 0 : (float) o / n;
     }
 
-    /** Full-screen, touch-through overlay outlining the two spots being watched. */
-    private void showBoxes(boolean show) {
-        if (!show) {
-            if (boxes != null) { try { wm.removeView(boxes); } catch (Exception ignored) {} boxes = null; }
-            return;
-        }
-        if (boxes != null) return;
+    // ---- showing and moving the spots ----
+
+    private float pxf, pyf;
+    private final float portalHalf = 0.014f;
+    private int dragging = -1;
+
+    /** Long-press A: show the spots and let you drag them. Tap A to save. */
+    private void startAdjust() {
+        if (armed) disarm();
+        adjusting = true;
+        setButton(auto, "✓", WARN, WARN_INK);
+        showBoxes(true, true);
+        toast("Drag the boxes onto the icons, then tap ✓");
+    }
+
+    private void finishAdjust() {
+        adjusting = false;
+        showBoxes(false, false);
+        getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE).edit()
+                .putFloat("c1x", c1x).putFloat("c1y", c1y)
+                .putFloat("c2x", c2x).putFloat("c2y", c2y)
+                .putFloat("px", pxf).putFloat("py", pyf).apply();
+        setButton(auto, "A", Color.TRANSPARENT, MUTED);
+        toast("Spots saved");
+        if (projection != null) arm();
+    }
+
+    private float[][] spots() { return new float[][]{{c1x, c1y, half}, {c2x, c2y, half}, {pxf, pyf, portalHalf}}; }
+
+    private void showBoxes(boolean show, boolean movable) {
+        if (boxes != null) { try { wm.removeView(boxes); } catch (Exception ignored) {} boxes = null; }
+        if (!show) return;
         readScreenSize();
         final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(dp(2));
-        paint.setColor(WARN);
+        final Paint label = new Paint(Paint.ANTI_ALIAS_FLAG);
+        label.setTextSize(dp(11));
+        label.setFakeBoldText(true);
+        final String[] names = {"altar", "altar", "portal"};
         boxes = new View(this) {
+            final int[] loc = new int[2];
             @Override protected void onDraw(Canvas c) {
-                int[] loc = new int[2];
                 getLocationOnScreen(loc);
-                int r = Math.round(half * scrW) + dp(3);
-                for (float fx : new float[]{c1x, c2x}) {
-                    int x = Math.round(fx * scrW) - loc[0], y = Math.round(cy * scrH) - loc[1];
+                float[][] sp = spots();
+                for (int k = 0; k < 3; k++) {
+                    int col = k == 2 ? Color.parseColor("#FF9F1C") : WARN;
+                    paint.setColor(col); label.setColor(col);
+                    int r = Math.round(sp[k][2] * scrW) + dp(3);
+                    int x = Math.round(sp[k][0] * scrW) - loc[0], y = Math.round(sp[k][1] * scrH) - loc[1];
                     c.drawRect(x - r, y - r, x + r, y + r, paint);
+                    c.drawText(names[k], x - r, y + r + dp(12), label);
                 }
             }
+            @Override public boolean onTouchEvent(MotionEvent e) {
+                if (!adjusting) return false;
+                getLocationOnScreen(loc);
+                float rx = e.getRawX(), ry = e.getRawY();
+                switch (e.getAction()) {
+                    case MotionEvent.ACTION_DOWN: {
+                        dragging = -1;
+                        float best = dp(60);
+                        float[][] sp = spots();
+                        for (int k = 0; k < 3; k++) {
+                            float d = Math.abs(rx - sp[k][0] * scrW) + Math.abs(ry - sp[k][1] * scrH);
+                            if (d < best) { best = d; dragging = k; }
+                        }
+                        return true;
+                    }
+                    case MotionEvent.ACTION_MOVE:
+                        if (dragging < 0) return true;
+                        float fx = Math.max(0, Math.min(1, rx / scrW)), fy = Math.max(0, Math.min(1, ry / scrH));
+                        if (dragging == 0) { c1x = fx; c1y = fy; }
+                        else if (dragging == 1) { c2x = fx; c2y = fy; }
+                        else { pxf = fx; pyf = fy; }
+                        invalidate();
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        dragging = -1;
+                        return true;
+                }
+                return true;
+            }
         };
+        int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
+        if (!movable) flags |= WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
         WindowManager.LayoutParams bp = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                PixelFormat.TRANSLUCENT);
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, flags, PixelFormat.TRANSLUCENT);
         bp.gravity = Gravity.TOP | Gravity.START;
         if (Build.VERSION.SDK_INT >= 28) {
             bp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         }
         wm.addView(boxes, bp);
+        // keep the strip on top so its buttons stay tappable while adjusting
+        try { wm.removeView(root); wm.addView(root, lp); } catch (Exception ignored) {}
     }
 
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
