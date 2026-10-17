@@ -1,0 +1,30 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'nz.pesh.gotr'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'nz.pesh.gotr'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+    signingConfigs {
+        // Fixed key so new builds install over the old one
+        gotr {
+            storeFile file('gotr.keystore')
+            storePassword 'gotrtimer'
+            keyAlias 'gotr'
+            keyPassword 'gotrtimer'
+        }
+    }
+    buildTypes {
+        debug { signingConfig signingConfigs.gotr }
+        release { signingConfig signingConfigs.gotr; minifyEnabled false }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
