@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0d12">
+<link rel="manifest" href="gotr.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>GOTR Portal Timer</title>
+<style>
+/* Layout: one slim horizontal bar, single dark theme (sits over the game), settings tucked under it */
+:root{
+  color-scheme:dark;
+  --bg:#0b0d12; --bar:#151a24; --line:#2a3242; --fg:#e8ecf3; --muted:#8a93a6;
+  --warn:#ffd23f; --warn-ink:#1a1400; --live:#3ddc97; --live-ink:#04150d; --stop:#ff5c5c;
+  --display:"Rajdhani", "Arial Narrow", system-ui, sans-serif;
+  --body:"Inter Tight", system-ui, sans-serif;
+}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);
+  padding-left:max(4px,env(safe-area-inset-left,0px));padding-right:max(4px,env(safe-area-inset-right,0px));padding-block:4px;}
+.bar{display:flex;align-items:center;gap:3px;width:140px;box-sizing:border-box;background:var(--bar);border:1px solid var(--line);border-radius:6px;padding:2px 2px 2px 6px;transition:background .15s,border-color .15s}
+.info{flex:1;min-width:0;display:flex;align-items:baseline;gap:10px}
+.time{font-family:var(--display);font-weight:700;font-size:1.3rem;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.label{display:none;font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn{font:600 .8rem var(--body);border:0;border-radius:4px;padding:6px 8px;line-height:1;cursor:pointer;color:var(--bg);background:var(--fg)}
+.btn.start{background:var(--live);color:var(--live-ink)}
+.btn.stopb{background:var(--stop);color:#1a0505}
+.btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);padding:5px 7px}
+.btn:focus-visible{outline:2px solid var(--warn);outline-offset:2px}
+.bar.warn{animation:flash .5s steps(1) infinite}
+.bar.warn .label,.bar.warn .time{color:var(--warn-ink)}
+@keyframes flash{0%{background:var(--warn);border-color:var(--warn)}50%{background:var(--bar);border-color:var(--warn)}}
+.bar.warn:not(.on) .time{color:var(--warn)} .bar.warn:not(.on) .label{color:var(--warn)}
+.bar.live{background:var(--live);border-color:var(--live)} .bar.live .time,.bar.live .label{color:var(--live-ink)}
+@media (prefers-reduced-motion:reduce){.bar.warn{animation:none;background:var(--warn)}}
+.progress{width:140px;height:2px;background:var(--line);border-radius:2px;margin-top:2px;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--muted)}
+details{margin-top:4px;font-size:.85rem;color:var(--muted)}
+summary{cursor:pointer;padding:2px 0;font-size:.7rem;list-style:none;width:max-content}
+summary::-webkit-details-marker{display:none}
+details[open] summary{margin-bottom:4px}
+.set{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:8px}
+.set label{display:flex;flex-direction:column;gap:4px;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}
+.set input[type=number]{background:var(--bar);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;font:500 1rem var(--body);font-variant-numeric:tabular-nums}
+.chk{flex-direction:row!important;align-items:center;text-transform:none!important;letter-spacing:0!important;font-size:.85rem!important}
+.hint{margin-top:8px;line-height:1.45;max-width:60ch}
+</head><body>
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@700&family=Inter+Tight:wght@500;600&display=swap">
+
+<div class="bar" id="bar">
+  <div class="info">
+    <span class="time" id="time">--:--</span>
+    <span class="label" id="label">Press start when the rift opens</span>
+  </div>
+  <button class="btn ghost" id="sync" title="Portal just appeared: resync" aria-label="Portal appeared, resync">P</button>
+  <button class="btn start" id="toggle" aria-label="Start">▶</button>
+</div>
+<div class="progress"><i id="prog"></i></div>
+
+<details>
+  <summary>⚙ timings</summary>
+  <div class="set">
+    <label for="first">First portal (s)<input id="first" type="number" min="10" value="160"></label>
+    <label for="every">Then every (s)<input id="every" type="number" min="10" value="140"></label>
+    <label for="warnS">Flash before (s)<input id="warnS" type="number" min="1" value="10"></label>
+    <label for="open">Portal open (s)<input id="open" type="number" min="0" value="25"></label>
+    <label class="chk" for="beep"><input id="beep" type="checkbox" checked> Beep at flash</label>
+  </div>
+  <p class="hint">▶ starts, ■ stops. Tap <b>P</b> the moment a portal actually appears to resync the countdown to it. Timings are saved on this device.</p>
+</details>
+
+<script>
+const $=id=>document.getElementById(id);
+const bar=$('bar'),timeEl=$('time'),labelEl=$('label'),prog=$('prog'),toggle=$('toggle');
+const keys=['first','every','warnS','open'];
+try{const s=JSON.parse(localStorage.getItem('gotr')||'{}');keys.forEach(k=>{if(s[k])$(k).value=s[k]});if(s.beep===false)$('beep').checked=false}catch(e){}
+function save(){try{const o={beep:$('beep').checked};keys.forEach(k=>o[k]=+$(k).value);localStorage.setItem('gotr',JSON.stringify(o))}catch(e){}}
+document.querySelectorAll('.set input').forEach(i=>i.addEventListener('change',save));
+const cfg=k=>Math.max(1,+$(k).value||0);
+
+let running=false,start=0,anchor=null,raf=0,beeped=-1,ctx=null,lock=null;
+// anchor: time (ms) of the last known portal spawn after a manual resync
+function nextSpawn(now){
+  const first=cfg('first')*1000,every=cfg('every')*1000;
+  const base=anchor??(start+first);
+  if(now<base) return {at:base,len:anchor?every:first,idx:anchor?1:0};
+  const n=Math.floor((now-base)/every)+1;
+  return {at:base+n*every,len:every,idx:n+(anchor?1:0)};
+}
+function prevSpawn(now){
+  const every=cfg('every')*1000;const base=anchor??(start+cfg('first')*1000);
+  if(now<base) return null;
+  return base+Math.floor((now-base)/every)*every;
+}
+function fmt(ms){const s=Math.ceil(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+function beep(){
+  if(!$('beep').checked)return;
+  try{ctx=ctx||new (window.AudioContext||window.webkitAudioContext)();
+    [0,.18].forEach(t=>{const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=880;o.connect(g);g.connect(ctx.destination);
+      g.gain.setValueAtTime(.25,ctx.currentTime+t);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+t+.15);o.start(ctx.currentTime+t);o.stop(ctx.currentTime+t+.16)})}catch(e){}
+}
+function tick(){
+  const now=Date.now(),nx=nextSpawn(now),left=nx.at-now,pv=prevSpawn(now),open=cfg('open')*1000;
+  const warn=cfg('warnS')*1000;
+  bar.classList.remove('warn','live');
+  if(pv!==null && now-pv<open){
+    bar.classList.add('live');timeEl.textContent=fmt(left);labelEl.textContent='Portal open · next in';
+  }else{
+    timeEl.textContent=fmt(left);
+    labelEl.textContent=left<=warn?'Portal incoming':'Next portal';
+    if(left<=warn){bar.classList.add('warn');if(beeped!==nx.at){beeped=nx.at;beep()}}
+  }
+  prog.style.width=Math.min(100,(1-left/nx.len)*100)+'%';
+}
+async function wake(){try{lock=await navigator.wakeLock?.request('screen')}catch(e){}}
+function startRun(){running=true;start=Date.now();anchor=null;beeped=-1;toggle.textContent='■';toggle.className='btn stopb';toggle.setAttribute('aria-label','Stop');
+  try{ctx=ctx||new (window.AudioContext||window.webkitAudioContext)();ctx.resume()}catch(e){} wake();clearInterval(raf);tick();raf=setInterval(tick,200)}
+function stopRun(){running=false;clearInterval(raf);bar.classList.remove('warn','live');timeEl.textContent='--:--';
+  labelEl.textContent='Press start when the rift opens';prog.style.width='0';toggle.textContent='▶';toggle.className='btn start';toggle.setAttribute('aria-label','Start');
+  try{lock?.release()}catch(e){}}
+toggle.addEventListener('click',()=>running?stopRun():startRun());
+$('sync').addEventListener('click',()=>{if(!running)startRun();anchor=Date.now();beeped=-1;tick()});
+document.addEventListener('visibilitychange',()=>{if(running&&document.visibilityState==='visible'){wake();tick()}});
+window.addEventListener('focus',()=>{if(running)tick()});
+</script>
+
+</body></html>
