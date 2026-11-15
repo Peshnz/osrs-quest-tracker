@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Family Trip Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FBF6EE; --card:#fff; --ink:#1E2A30; --muted:#6B7780; --line:#ECE3D6;
+    --teal:#0F5C63; --teal-d:#0A454B; --teal-l:#E2EFEC; --coral:#E8664A; --sand:#F4EADB;
+    --r:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"DM Sans",system-ui,sans-serif;font-size:15px;-webkit-tap-highlight-color:transparent}
+  button{font:inherit;color:inherit;cursor:pointer}
+  .hidden{display:none!important}
+
+  /* Header */
+  .top{background:var(--teal);color:#FDF8F0;padding:18px 16px 12px;position:sticky;top:0;z-index:5;box-shadow:0 2px 12px rgba(10,69,75,.18)}
+  .title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;max-width:760px;margin:0 auto}
+  h1{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:26px;line-height:1.1;margin:0;letter-spacing:-.01em}
+  .sub{opacity:.82;font-size:13.5px;margin-top:4px}
+  .icon-btn{background:rgba(255,255,255,.14);border:0;border-radius:12px;width:40px;height:40px;font-size:18px;flex:none}
+  .members{display:flex;gap:6px;flex-wrap:wrap;margin:10px auto 0;max-width:760px}
+  .mchip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.12);border:0;color:inherit;border-radius:99px;padding:3px 10px 3px 3px;font-size:13px}
+  .mchip.me{background:rgba(255,255,255,.26)}
+  .mchip b{font-weight:600;opacity:.85}
+  .av{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;font-weight:700;color:#fff;flex:none}
+  .tabs{display:flex;gap:6px;margin:12px auto 0;max-width:760px;background:rgba(0,0,0,.16);padding:4px;border-radius:12px}
+  .tabs button{flex:1;border:0;background:transparent;color:#FDF8F0;padding:8px;border-radius:9px;font-weight:600;opacity:.8}
+  .tabs button.on{background:#FDF8F0;color:var(--teal-d);opacity:1}
+  .count{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--coral);color:#fff;font-size:11px;line-height:18px;margin-left:4px}
+
+  main{max-width:760px;margin:0 auto;padding:12px 14px 110px}
+  .banner{max-width:760px;margin:10px auto 0;padding:10px 14px;background:#FFF3D6;border:1px solid #F1DCA6;border-radius:12px;font-size:13.5px;width:calc(100% - 28px)}
+
+  /* Day strip */
+  .strip{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:none;scroll-snap-type:x proximity}
+  .strip::-webkit-scrollbar{display:none}
+  .dchip{flex:none;scroll-snap-align:center;width:58px;border:1.5px solid var(--line);background:var(--card);border-radius:14px;padding:7px 0 6px;display:flex;flex-direction:column;align-items:center;gap:1px}
+  .dchip .dow{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+  .dchip .dn{font-family:Fraunces,Georgia,serif;font-size:21px;font-weight:600;line-height:1.1}
+  .dchip .dots{height:8px;font-size:9px;letter-spacing:1px;color:var(--coral);line-height:8px}
+  .dchip.today{border-color:var(--coral)}
+  .dchip.on{background:var(--teal);border-color:var(--teal);color:#fff}
+  .dchip.on .dow{color:rgba(255,255,255,.8)}
+  .dchip.on .dots{color:#FFD7CC}
+  .dchip.all .dn{font-size:15px;font-family:"DM Sans";font-weight:700;padding:3px 0 2px}
+
+  /* Day blocks */
+  .day{margin-top:8px}
+  .day + .day{margin-top:22px}
+  .dhead{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin:4px 2px 10px}
+  .dhead h2{font-family:Fraunces,Georgia,serif;font-size:20px;margin:0;font-weight:600}
+  .dhead .dn2{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .tag-today{display:inline-block;background:var(--coral);color:#fff;font:700 10.5px "DM Sans";text-transform:uppercase;letter-spacing:.06em;border-radius:6px;padding:2px 6px;vertical-align:3px;margin-left:6px}
+  .ghost{border:1.5px solid var(--line);background:var(--card);border-radius:10px;padding:6px 11px;font-size:13px;font-weight:600;color:var(--teal-d);flex:none}
+
+  .card{display:flex;gap:12px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-left:5px solid var(--c);border-radius:var(--r);padding:12px 14px 12px 12px;margin-bottom:9px;box-shadow:0 1px 2px rgba(30,42,48,.04);cursor:pointer}
+  .card:active{transform:scale(.99)}
+  .card:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+  .time{width:66px;flex:none;padding-top:1px}
+  .t1{white-space:nowrap}
+  .t1{font-weight:700;font-size:14.5px}
+  .t2{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .body{flex:1;min-width:0}
+  .ttl{font-weight:700;font-size:16px;line-height:1.25;word-wrap:break-word}
+  .emo{margin-right:6px}
+  .meta{color:var(--muted);font-size:13.5px;margin-top:4px;word-wrap:break-word}
+  .who{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+  .pill{display:inline-flex;align-items:center;gap:5px;background:var(--sand);border-radius:99px;padding:2px 9px 2px 2px;font-size:12px;font-weight:500}
+  .pill.every{padding:3px 9px;background:var(--teal-l);color:var(--teal-d);font-weight:600}
+  .pill .av{width:18px;height:18px;font-size:9.5px}
+  .notes{font-size:13.5px;margin-top:7px;color:#3C4A52;white-space:pre-wrap;word-wrap:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .link{display:inline-block;margin-top:6px;font-size:13px;color:var(--teal);font-weight:600;word-break:break-all}
+  .clash{margin-top:7px;font-size:12.5px;color:#9A4A12;background:#FFF1E3;border-radius:8px;padding:4px 8px}
+  .by{font-size:11.5px;color:var(--muted);margin-top:7px}
+
+  .empty{border:1.5px dashed #DCCFBD;border-radius:var(--r);padding:16px;text-align:center;color:var(--muted);font-size:14px}
+  .empty.slim{padding:10px;font-size:13px}
+  .addline{display:block;width:100%;margin-top:4px;border:1.5px dashed #CFE0DC;background:transparent;border-radius:12px;padding:10px;color:var(--teal);font-weight:600}
+  .section-note{color:var(--muted);font-size:13.5px;margin:6px 2px 12px}
+  h3.sec{font-family:Fraunces,Georgia,serif;font-size:17px;font-weight:600;margin:22px 2px 10px}
+
+  .msg{text-align:center;padding:40px 18px}
+  .msg .big{font-size:44px}
+  .msg h2{font-family:Fraunces,Georgia,serif;font-weight:600;margin:10px 0 6px}
+  .msg p{color:var(--muted);margin:0 auto 18px;max-width:360px;line-height:1.45}
+  .loading{padding:40px;text-align:center;color:var(--muted)}
+
+  .fab{position:fixed;right:18px;bottom:22px;z-index:6;background:var(--coral);color:#fff;border:0;border-radius:99px;padding:15px 22px;font-weight:700;font-size:16px;box-shadow:0 6px 18px rgba(232,102,74,.4)}
+  .primary{background:var(--teal);color:#fff;border:0;border-radius:12px;padding:12px 18px;font-weight:700;font-size:15px}
+
+  /* Sheet */
+  .sheet-wrap{position:fixed;inset:0;background:rgba(20,30,34,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+  .sheet{background:var(--bg);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;padding:8px 18px 24px;animation:up .22s ease-out}
+  @media(min-width:640px){.sheet-wrap{align-items:center}.sheet{border-radius:22px}}
+  @keyframes up{from{transform:translateY(30px);opacity:.5}to{transform:none;opacity:1}}
+  .grab{width:42px;height:5px;border-radius:3px;background:#D9CDBB;margin:4px auto 10px}
+  .shead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .shead h2{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:21px;margin:0}
+  .x{border:0;background:var(--sand);width:34px;height:34px;border-radius:50%;font-size:16px}
+  label.f{display:block;font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px}
+  input.in,select.in,textarea.in{width:100%;font:inherit;font-size:16px;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink)}
+  input.in:focus,select.in:focus,textarea.in:focus{outline:none;border-color:var(--teal)}
+  textarea.in{min-height:76px;resize:vertical}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:7px 12px;font-size:14px;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+  .chip.on{border-color:var(--teal);background:var(--teal-l);color:var(--teal-d);font-weight:700}
+  .chip .av{width:20px;height:20px;font-size:10px}
+  .actions{display:flex;gap:10px;margin-top:22px;align-items:center}
+  .actions .primary{flex:1}
+  .danger{border:1.5px solid #F0C8BE;background:#fff;color:#B4402A;border-radius:12px;padding:11px 14px;font-weight:700}
+  .danger.confirm{background:#B4402A;color:#fff;border-color:#B4402A}
+  .mrow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .swatch{width:40px;height:40px;border-radius:12px;border:0;flex:none;color:#fff;font-weight:700}
+  .mrow .in{flex:1}
+  .rm{border:0;background:var(--sand);width:40px;height:40px;border-radius:12px;flex:none}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.4}
+  .err{color:#B4402A;font-size:13px;margin-top:10px;min-height:1em}
+  .ro-note{background:var(--teal-l);color:var(--teal-d);border-radius:12px;padding:10px 12px;font-size:13.5px;margin-top:8px}
+
+  .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:11px 16px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:.2s;z-index:30;max-width:calc(100% - 32px);text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%)}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="title-row">
+    <div>
+      <h1 id="tripName">Family Trip</h1>
+      <div id="tripDates" class="sub">Getting the plan…</div>
+    </div>
+    <button id="settingsBtn" class="icon-btn hidden" aria-label="Trip settings">⚙️</button>
+  </div>
+  <div id="members" class="members"></div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="days" class="on">📅 Calendar</button>
+    <button data-tab="ideas">💡 Ideas<span id="ideaCount"></span></button>
+  </nav>
+</header>
+<div id="banner" class="banner hidden"></div>
+<main id="main"><div class="loading">Loading the plan…</div></main>
+<button id="fab" class="fab hidden">＋ Add</button>
+<div id="sheetWrap" class="sheet-wrap hidden"><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<div id="toast" class="toast" role="status"></div>
+
+<script type="module">
+/* ================= FIREBASE SETTINGS =================
+   Paste your Firebase web app config here (Firebase console →
+   Project settings → Your apps → Web app → SDK setup → Config). */
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+/* Every trip lives under its own id, so this file can be reused for another trip later. */
+const TRIP_ID = "family-trip-2026";
+/* ===================================================== */
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+(function(){
+  const CATS = {
+    activity:{label:'Activity',emoji:'🎯',color:'#0F5C63'},
+    food:{label:'Food',emoji:'🍽️',color:'#E8664A'},
+    travel:{label:'Travel',emoji:'🚗',color:'#2E86AB'},
+    relax:{label:'Downtime',emoji:'🌴',color:'#5E9E3A'},
+    booking:{label:'Booking',emoji:'🎟️',color:'#7A5CFA'},
+  };
+  const PALETTE = ['#E8664A','#17A3A0','#E0A100','#5E9E3A','#7A5CFA','#D9417A','#2E86AB','#8C6A4F'];
+
+  const S = {
+    booting:true, db:null, user:null, me:null, canWrite:null, readOnly:false,
+    trip:null, tripLoaded:false, acts:[], tab:'days', sel:null, names:{},
+    confirmed:false, offline:false, loadErr:false, scrollToSel:true
+  };
+  try{ S.me = localStorage.getItem('tripMe:'+TRIP_ID) || null; }catch(e){}
+  try{ const s = localStorage.getItem('tripSel'); if(s) S.sel = s; const t = localStorage.getItem('tripTab'); if(t==='ideas'||t==='days') S.tab = t; }catch(e){}
+
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const pad = n => String(n).padStart(2,'0');
+  const ds = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const pd = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d); };
+  const validDate = s => typeof s==='string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(pd(s));
+  const todayStr = () => ds(new Date());
+  const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+  const uid = () => Math.random().toString(36).slice(2,10);
+  const mins = t => { if(!/^\d{2}:\d{2}$/.test(t||'')) return null; const [h,m] = t.split(':').map(Number); return h*60+m; };
+  const fmtTime = t => { const m = mins(t); if(m==null) return ''; return new Date(2000,0,1,Math.floor(m/60),m%60).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); };
+  const fmtLong = s => pd(s).toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});
+  const fmtShort = s => pd(s).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});
+  const safeUrl = u => { try{ const x = new URL(u); return (x.protocol==='https:'||x.protocol==='http:') ? x.href : ''; }catch(e){ return ''; } };
+
+  function tripDays(){
+    if(!S.trip || !validDate(S.trip.start) || !validDate(S.trip.end)) return [];
+    const out=[]; let d = pd(S.trip.start); const e = pd(S.trip.end);
+    while(d<=e && out.length<92){ out.push(ds(d)); d = addDays(d,1); }
+    return out;
+  }
+  function members(){ return Array.isArray(S.trip && S.trip.members) ? S.trip.members.filter(m => m && typeof m.id==='string') : []; }
+  function memberById(id){ return members().find(m => m.id===id); }
+  function initials(n){ const p = String(n||'?').trim().split(/\s+/); return ((p[0]||'?')[0] + (p[1]?p[1][0]:'')).toUpperCase(); }
+  function av(m){ return `<span class="av" style="background:${esc(m.color||'#888')}">${esc(initials(m.name))}</span>`; }
+  function canEdit(){ return !!S.db && !S.readOnly && S.canWrite!==false; }
+
+  function norm(doc){
+    const d = doc.data() || {};
+    return {
+      id:doc.id, title:String(d.title||'Untitled').slice(0,200),
+      date: validDate(d.date) ? d.date : '',
+      start: mins(d.start)!=null ? d.start : '', end: mins(d.end)!=null ? d.end : '',
+      place:String(d.place||''), cat: CATS[d.cat] ? d.cat : 'activity',
+      who: Array.isArray(d.who) ? d.who.filter(x => typeof x==='string') : [],
+      notes:String(d.notes||''), link:String(d.link||''),
+      by: typeof d.by==='string' ? d.by : '', createdAt: Number(d.createdAt)||0
+    };
+  }
+  function sortActs(a,b){
+    const am = mins(a.start), bm = mins(b.start);
+    if(am==null && bm==null) return a.createdAt-b.createdAt;
+    if(am==null) return 1; if(bm==null) return -1;
+    return am-bm || a.createdAt-b.createdAt;
+  }
+  function actsOn(day){ return S.acts.filter(a => a.date===day).sort(sortActs); }
+  function sharesPeople(a,b){
+    const ids = members().map(m=>m.id);
+    const A = a.who.filter(x=>ids.includes(x)), B = b.who.filter(x=>ids.includes(x));
+    if(!A.length || !B.length) return true;
+    return A.some(x => B.includes(x));
+  }
+  function clashes(list){
+    const map = new Map();
+    const timed = list.filter(a => mins(a.start)!=null).map(a => {
+      const s = mins(a.start); let e = mins(a.end); if(e==null || e<=s) e = s+60;
+      return {a,s,e};
+    });
+    for(let i=0;i<timed.length;i++) for(let j=i+1;j<timed.length;j++){
+      const x = timed[i], y = timed[j];
+      if(x.s < y.e && y.s < x.e && sharesPeople(x.a,y.a)){
+        (map.get(x.a.id) || map.set(x.a.id,[]).get(x.a.id)).push(y.a.title);
+        (map.get(y.a.id) || map.set(y.a.id,[]).get(y.a.id)).push(x.a.title);
+      }
+    }
+    return map;
+  }
+
+  function whoHtml(who){
+    const ms = members();
+    const sel = ms.filter(m => who.includes(m.id));
+    if(!sel.length || sel.length===ms.length) return `<span class="pill every">👨‍👩‍👧‍👦 Everyone</span>`;
+    return sel.map(m => `<span class="pill">${av(m)}${esc(m.name)}</span>`).join('');
+  }
+  function byLine(a){
+    if(!a.by) return '';
+    if(a.by===S.me) return `<div class="by">Added by you</div>`;
+    const m = memberById(a.by);
+    return m ? `<div class="by">Added by ${esc(m.name)}</div>` : '';
+  }
+  function askWhoIfNeeded(force){
+    if(!S.trip || !members().length) return;
+    if(!force && (memberById(S.me) || !$('#sheetWrap').classList.contains('hidden'))) return;
+    openSheet(`<div class="shead"><h2>Who are you?</h2>${force?'<button class="x" data-close aria-label="Close">✕</button>':''}</div>
+      <p class="hint" style="font-size:14px;margin:0 0 14px">So everyone can see who added what. You only need to pick once on this phone.</p>
+      <div class="chips" id="whoPick">${members().map(m => `<button type="button" class="chip ${m.id===S.me?'on':''}" data-me="${esc(m.id)}" style="font-size:16px;padding:10px 14px">${av(m)}${esc(m.name)}</button>`).join('')}</div>`);
+    $('#whoPick').addEventListener('click', e => {
+      const b = e.target.closest('[data-me]'); if(!b) return;
+      S.me = b.dataset.me;
+      try{ localStorage.setItem('tripMe:'+TRIP_ID, S.me); }catch(err){}
+      closeSheet(); render();
+      const m = memberById(S.me); if(m) toast(`Hi ${m.name}! 👋`);
+    });
+  }
+  function card(a, clash){
+    const c = CATS[a.cat];
+    let time;
+    if(!a.date) time = `<div class="t2">No day yet</div>`;
+    else if(a.start) time = `<div class="t1">${esc(fmtTime(a.start))}</div>${a.end?`<div class="t2">to ${esc(fmtTime(a.end))}</div>`:''}`;
+    else time = `<div class="t2">Any time</div>`;
+    const url = safeUrl(a.link);
+    return `<div class="card" role="button" tabindex="0" data-id="${esc(a.id)}" style="--c:${c.color}">
+      <div class="time">${time}</div>
+      <div class="body">
+        <div class="ttl"><span class="emo">${c.emoji}</span>${esc(a.title)}</div>
+        ${a.place?`<div class="meta">📍 ${esc(a.place)}</div>`:''}
+        <div class="who">${whoHtml(a.who)}</div>
+        ${a.notes?`<div class="notes">${esc(a.notes)}</div>`:''}
+        ${url?`<a class="link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">🔗 ${esc(new URL(url).hostname.replace(/^www\./,''))}</a>`:''}
+        ${clash&&clash.length?`<div class="clash">⚠️ Overlaps with ${esc(clash.join(', '))}</div>`:''}
+        ${byLine(a)}
+      </div>
+    </div>`;
+  }
+
+  /* ---------- Rendering ---------- */
+  function renderHeader(){
+    const t = S.trip;
+    $('#tripName').textContent = (t && t.name) ? t.name : 'Family Trip';
+    const days = tripDays();
+    if(t && days.length){
+      $('#tripDates').textContent = `${fmtShort(days[0])} – ${fmtShort(days[days.length-1])} · ${days.length} day${days.length>1?'s':''}`;
+    } else {
+      $('#tripDates').textContent = S.booting || !S.tripLoaded ? 'Getting the plan…' : 'Not set up yet';
+    }
+    $('#members').innerHTML = members().map(m => `<button type="button" class="mchip${m.id===S.me?' me':''}" data-pickme>${av(m)}${esc(m.name)}${m.id===S.me?' <b>(you)</b>':''}</button>`).join('');
+    $('#settingsBtn').classList.toggle('hidden', !(t || canEdit()) || !S.db);
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab===S.tab));
+    $('#tabs').classList.toggle('hidden', !t);
+    const ideas = S.acts.filter(a => !a.date).length;
+    $('#ideaCount').innerHTML = ideas ? `<span class="count">${ideas}</span>` : '';
+  }
+  function renderBanner(){
+    const b = $('#banner');
+    let msg = '';
+    if(S.loadErr) msg = "Couldn't load the plan. Try opening the page again a bit later.";
+    else if(S.offline) msg = S.tripLoaded ? "Can't reach the shared plan right now, so this may be out of date. It'll catch up once you're connected." : "Can't reach the shared plan yet. Check your connection — it'll load as soon as it connects.";
+    b.textContent = msg; b.classList.toggle('hidden', !msg);
+  }
+  function msgBox(big,title,text,btn){
+    return `<div class="msg"><div class="big">${big}</div><h2>${esc(title)}</h2><p>${esc(text)}</p>${btn||''}</div>`;
+  }
+
+  function render(){
+    renderHeader(); renderBanner();
+    const main = $('#main');
+    const stripEl = $('#strip'); const keepScroll = stripEl ? stripEl.scrollLeft : null;
+    $('#fab').classList.toggle('hidden', !(canEdit() && S.trip));
+    if(S.booting){ main.innerHTML = `<div class="loading">Loading the plan…</div>`; return; }
+    if(S.noConfig){ main.innerHTML = msgBox('🔧','Almost ready','This planner still needs its Firebase settings added to the file before anyone can use it.'); return; }
+    if(!S.db){ main.innerHTML = msgBox('📡','Couldn’t start the planner','Check your connection and reload the page.'); return; }
+    if(!S.tripLoaded){ main.innerHTML = `<div class="loading">Loading the plan…</div>`; return; }
+    if(!S.trip){
+      main.innerHTML = canEdit()
+        ? msgBox('🧳','Let’s plan this trip','Add the trip dates and who’s coming, then everyone can start filling in the days.','<button class="primary" data-setup>Set up the trip</button>')
+        : msgBox('🧳','Nothing here yet','The trip hasn’t been set up yet. Check back once the organiser has added the dates.');
+      return;
+    }
+    if(S.tab==='days') renderDays(main, keepScroll); else renderIdeas(main);
+  }
+
+  function dayBlock(day, idx, total, compact){
+    const list = actsOn(day);
+    const cl = clashes(list);
+    const isToday = day===todayStr();
+    let h = `<section class="day"><div class="dhead"><div><h2>${esc(fmtLong(day))}${isToday?'<span class="tag-today">Today</span>':''}</h2><div class="dn2">Day ${idx+1} of ${total}${list.length?` · ${list.length} planned`:''}</div></div>`;
+    if(list.length) h += `<button class="ghost" data-copy="${day}">Copy</button>`;
+    h += `</div>`;
+    if(list.length) h += list.map(a => card(a, cl.get(a.id))).join('');
+    else h += `<div class="empty${compact?' slim':''}">${compact?'Free day — nothing planned yet':'Nothing planned for this day yet.'}</div>`;
+    if(canEdit() && !compact) h += `<button class="addline" data-add="${day}">＋ Add to ${esc(fmtShort(day))}</button>`;
+    return h + `</section>`;
+  }
+
+  function renderDays(main, keepScroll){
+    const days = tripDays();
+    if(!S.sel || (S.sel!=='all' && !days.includes(S.sel))){
+      S.sel = days.includes(todayStr()) ? todayStr() : (days[0] || 'all');
+      S.scrollToSel = true;
+    }
+    const t = todayStr();
+    let h = `<div class="strip" id="strip"><button class="dchip all ${S.sel==='all'?'on':''}" data-day="all"><span class="dow">Whole</span><span class="dn">trip</span><span class="dots"></span></button>`;
+    h += days.map(d => {
+      const n = S.acts.filter(a => a.date===d).length;
+      const dt = pd(d);
+      return `<button class="dchip ${d===S.sel?'on':''} ${d===t?'today':''}" data-day="${d}" aria-label="${esc(fmtLong(d))}"><span class="dow">${esc(dt.toLocaleDateString(undefined,{weekday:'short'}))}</span><span class="dn">${dt.getDate()}</span><span class="dots">${n?'●'.repeat(Math.min(n,4)):''}</span></button>`;
+    }).join('') + `</div>`;
+    if(!days.length) h += `<div class="empty">The trip dates look wrong. Open ⚙️ settings to fix them.</div>`;
+    else if(S.sel==='all') h += days.map((d,i) => dayBlock(d,i,days.length,true)).join('');
+    else h += dayBlock(S.sel, days.indexOf(S.sel), days.length, false);
+    main.innerHTML = h;
+    const strip = $('#strip');
+    if(S.scrollToSel){
+      const on = strip.querySelector('.dchip.on');
+      if(on) strip.scrollLeft = Math.max(0, on.offsetLeft - strip.clientWidth/2 + on.offsetWidth/2);
+      S.scrollToSel = false;
+    } else if(keepScroll!=null) strip.scrollLeft = keepScroll;
+  }
+
+  function renderIdeas(main){
+    const days = tripDays();
+    const ideas = S.acts.filter(a => !a.date).sort((a,b) => a.createdAt-b.createdAt);
+    const outside = S.acts.filter(a => a.date && !days.includes(a.date)).sort((a,b) => a.date.localeCompare(b.date) || sortActs(a,b));
+    let h = `<p class="section-note">Things someone would like to do but that aren’t on a day yet. Tap one to give it a day and time.</p>`;
+    h += ideas.length ? ideas.map(a => card(a)).join('') : `<div class="empty">No ideas yet. Add anything you’d like to squeeze in!</div>`;
+    if(canEdit()) h += `<button class="addline" data-add="">＋ Add an idea</button>`;
+    if(outside.length){
+      h += `<h3 class="sec">Outside the trip dates</h3><p class="section-note">These are on days that are no longer part of the trip.</p>`;
+      h += outside.map(a => card(a).replace('<div class="t2">', `<div class="t2">${esc(fmtShort(a.date))}<br>`)).join('');
+    }
+    main.innerHTML = h;
+  }
+
+  /* ---------- Sheet ---------- */
+  function openSheet(html){
+    $('#sheet').innerHTML = `<div class="grab"></div>` + html;
+    $('#sheetWrap').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSheet(){
+    $('#sheetWrap').classList.add('hidden');
+    $('#sheet').innerHTML = '';
+    document.body.style.overflow = '';
+  }
+  $('#sheetWrap').addEventListener('click', e => { if(e.target.id==='sheetWrap') closeSheet(); });
+  document.addEventListener('keydown', e => { if(e.key==='Escape' && !$('#sheetWrap').classList.contains('hidden')) closeSheet(); });
+
+  function openActivity(id, presetDate){
+    const a = id ? S.acts.find(x => x.id===id) : null;
+    if(id && !a) return;
+    const ro = !canEdit();
+    const days = tripDays();
+    const v = a ? {...a, who:[...a.who]} : {title:'',date:presetDate||'',start:'',end:'',place:'',cat:'activity',who:[],notes:'',link:''};
+    let who = v.who.filter(x => memberById(x));
+    let cat = v.cat;
+    let opts = `<option value="">💡 No day yet (just an idea)</option>`;
+    if(v.date && !days.includes(v.date)) opts += `<option value="${v.date}">${esc(fmtShort(v.date))} (outside trip)</option>`;
+    opts += days.map((d,i) => `<option value="${d}">Day ${i+1} · ${esc(fmtShort(d))}</option>`).join('');
+    const dis = ro ? 'disabled' : '';
+    openSheet(`
+      <div class="shead"><h2>${a ? (ro?'Activity':'Edit activity') : 'New activity'}</h2><button class="x" data-close aria-label="Close">✕</button></div>
+      ${ro?'<div class="ro-note">You can view this, but only Editors can make changes.</div>':''}
+      <form id="actForm" autocomplete="off">
+        <label class="f" for="fTitle">What</label>
+        <input class="in" id="fTitle" maxlength="120" placeholder="e.g. Cable car up Table Mountain" value="${esc(v.title)}" ${dis}>
+        <label class="f">Type</label>
+        <div class="chips" id="fCat">${Object.entries(CATS).map(([k,c]) => `<button type="button" class="chip ${k===cat?'on':''}" data-cat="${k}" ${dis}>${c.emoji} ${c.label}</button>`).join('')}</div>
+        <label class="f" for="fDate">Day</label>
+        <select class="in" id="fDate" ${dis}>${opts}</select>
+        <div class="row2">
+          <div><label class="f" for="fStart">Starts</label><input class="in" type="time" id="fStart" value="${esc(v.start)}" ${dis}></div>
+          <div><label class="f" for="fEnd">Ends</label><input class="in" type="time" id="fEnd" value="${esc(v.end)}" ${dis}></div>
+        </div>
+        <div class="hint">Leave the times empty for “any time” that day.</div>
+        <label class="f" for="fPlace">Where</label>
+        <input class="in" id="fPlace" maxlength="160" placeholder="Place or address" value="${esc(v.place)}" ${dis}>
+        <label class="f">Who's going</label>
+        <div class="chips" id="fWho"></div>
+        <label class="f" for="fNotes">Notes</label>
+        <textarea class="in" id="fNotes" maxlength="2000" placeholder="Booking refs, what to bring, cost…" ${dis}>${esc(v.notes)}</textarea>
+        <label class="f" for="fLink">Link</label>
+        <input class="in" id="fLink" type="url" inputmode="url" maxlength="500" placeholder="https://…" value="${esc(v.link)}" ${dis}>
+        <div class="err" id="fErr"></div>
+        ${ro ? '' : `<div class="actions">${a?'<button type="button" class="danger" id="fDel">Delete</button>':''}<button type="submit" class="primary" id="fSave">${a?'Save changes':'Add to plan'}</button></div>`}
+      </form>`);
+    $('#fDate').value = v.date && (days.includes(v.date) || v.date===a?.date) ? v.date : '';
+
+    function drawWho(){
+      const ms = members();
+      const everyone = !who.length || who.length===ms.length;
+      $('#fWho').innerHTML = `<button type="button" class="chip ${everyone?'on':''}" data-who="*" ${dis}>👨‍👩‍👧‍👦 Everyone</button>` +
+        ms.map(m => `<button type="button" class="chip ${!everyone && who.includes(m.id)?'on':''}" data-who="${esc(m.id)}" ${dis}>${av(m)}${esc(m.name)}</button>`).join('');
+    }
+    drawWho();
+    if(ro) return;
+
+    $('#fWho').addEventListener('click', e => {
+      const b = e.target.closest('[data-who]'); if(!b) return;
+      const ms = members(); const k = b.dataset.who;
+      if(k==='*') who = [];
+      else {
+        if(!who.length || who.length===ms.length) who = [k];
+        else who = who.includes(k) ? who.filter(x => x!==k) : [...who, k];
+        if(who.length===ms.length) who = [];
+      }
+      drawWho();
+    });
+    $('#fCat').addEventListener('click', e => {
+      const b = e.target.closest('[data-cat]'); if(!b) return;
+      cat = b.dataset.cat;
+      $('#fCat').querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.dataset.cat===cat));
+    });
+    if(!a) setTimeout(() => { try{ $('#fTitle').focus(); }catch(e){} }, 250);
+
+    let busy = false;
+    $('#actForm').addEventListener('submit', async e => {
+      e.preventDefault(); if(busy) return;
+      const title = $('#fTitle').value.trim();
+      const start = $('#fStart').value, end = $('#fEnd').value;
+      let link = $('#fLink').value.trim();
+      if(link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
+      const err = $('#fErr');
+      if(!title){ err.textContent = 'Give it a name first.'; $('#fTitle').focus(); return; }
+      if(end && !start){ err.textContent = 'Add a start time too, or clear the end time.'; return; }
+      if(start && end && mins(end) <= mins(start)){ err.textContent = 'The end time needs to be after the start time.'; return; }
+      if(link && !safeUrl(link)){ err.textContent = 'That link doesn’t look right.'; return; }
+      const data = {
+        title, cat, date:$('#fDate').value, start, end,
+        place:$('#fPlace').value.trim(), who:[...who], notes:$('#fNotes').value.trim(), link
+      };
+      busy = true; $('#fSave').disabled = true; $('#fSave').textContent = 'Saving…';
+      const ok = await saveActivity(a ? a.id : null, data);
+      busy = false;
+      if(ok){
+        closeSheet();
+        toast(a ? 'Saved' : (data.date ? `Added to ${fmtShort(data.date)}` : 'Added to Ideas'));
+        if(data.date && S.tab==='days' && S.sel!=='all' && S.sel!==data.date && tripDays().includes(data.date)){ S.sel = data.date; S.scrollToSel = true; saveSel(); render(); }
+      } else if(document.contains($('#fSave'))){ $('#fSave').disabled = false; $('#fSave').textContent = a?'Save changes':'Add to plan'; }
+    });
+    if(a){
+      let armed = false;
+      $('#fDel').addEventListener('click', async () => {
+        if(!armed){ armed = true; $('#fDel').classList.add('confirm'); $('#fDel').textContent = 'Tap again to delete'; setTimeout(() => { const d=$('#fDel'); if(d){ armed=false; d.classList.remove('confirm'); d.textContent='Delete'; } }, 3500); return; }
+        $('#fDel').disabled = true;
+        const ok = await write(() => S.db.deleteAct(a.id));
+        if(ok){ closeSheet(); toast('Deleted'); }
+      });
+    }
+  }
+
+  function openSettings(){
+    const ro = !canEdit();
+    const t = S.trip || {};
+    const today = new Date();
+    let start = validDate(t.start) ? t.start : ds(today);
+    let end = validDate(t.end) ? t.end : ds(addDays(today,6));
+    let mem = members().map(m => ({...m}));
+    if(!mem.length) mem = [{id:uid(), name:'', color:PALETTE[0]}];
+    const dis = ro ? 'disabled' : '';
+    openSheet(`
+      <div class="shead"><h2>${S.trip?'Trip settings':'Set up the trip'}</h2><button class="x" data-close aria-label="Close">✕</button></div>
+      ${ro?'<div class="ro-note">Only Editors can change the trip settings.</div>':''}
+      <form id="setForm" autocomplete="off">
+        <label class="f" for="sName">Trip name</label>
+        <input class="in" id="sName" maxlength="60" placeholder="e.g. Cape Town 2026" value="${esc(t.name||'')}" ${dis}>
+        <div class="row2">
+          <div><label class="f" for="sStart">First day</label><input class="in" type="date" id="sStart" value="${start}" ${dis}></div>
+          <div><label class="f" for="sEnd">Last day</label><input class="in" type="date" id="sEnd" value="${end}" ${dis}></div>
+        </div>
+        <label class="f">Who's on the trip</label>
+        <div id="sMem"></div>
+        ${ro?'':'<button type="button" class="addline" id="sAddMem">＋ Add person</button><div class="hint">Tap a colour square to change someone’s colour.</div>'}
+        <div class="err" id="sErr"></div>
+        ${ro?'':`<div class="actions"><button type="submit" class="primary" id="sSave">${S.trip?'Save':'Start planning'}</button></div>`}
+      </form>`);
+    function drawMem(){
+      $('#sMem').innerHTML = mem.map((m,i) => `<div class="mrow">
+        <button type="button" class="swatch" style="background:${esc(m.color)}" data-sw="${i}" aria-label="Change colour" ${dis}>${esc(initials(m.name||'?'))}</button>
+        <input class="in" data-mn="${i}" maxlength="30" placeholder="Name" value="${esc(m.name)}" ${dis}>
+        ${ro||mem.length<2?'':`<button type="button" class="rm" data-rm="${i}" aria-label="Remove">✕</button>`}
+      </div>`).join('');
+    }
+    drawMem();
+    if(ro) return;
+    $('#sMem').addEventListener('input', e => {
+      const i = e.target.dataset.mn; if(i==null) return;
+      mem[i].name = e.target.value;
+      const sw = $('#sMem').querySelector(`[data-sw="${i}"]`); if(sw) sw.textContent = initials(e.target.value||'?');
+    });
+    $('#sMem').addEventListener('click', e => {
+      const sw = e.target.closest('[data-sw]'), rm = e.target.closest('[data-rm]');
+      if(sw){ const m = mem[sw.dataset.sw]; m.color = PALETTE[(PALETTE.indexOf(m.color)+1) % PALETTE.length]; drawMem(); }
+      if(rm){ mem.splice(Number(rm.dataset.rm),1); drawMem(); }
+    });
+    $('#sAddMem').addEventListener('click', () => {
+      const used = mem.map(m => m.color);
+      mem.push({id:uid(), name:'', color: PALETTE.find(c => !used.includes(c)) || PALETTE[mem.length % PALETTE.length]});
+      drawMem();
+      const ins = $('#sMem').querySelectorAll('input'); ins[ins.length-1].focus();
+    });
+    let busy = false;
+    $('#setForm').addEventListener('submit', async e => {
+      e.preventDefault(); if(busy) return;
+      const err = $('#sErr');
+      const s = $('#sStart').value, en = $('#sEnd').value;
+      if(!validDate(s) || !validDate(en)){ err.textContent = 'Pick both the first and last day.'; return; }
+      if(pd(en) < pd(s)){ err.textContent = 'The last day can’t be before the first day.'; return; }
+      if((pd(en)-pd(s))/864e5 > 90){ err.textContent = 'That’s a long trip! Keep it to 3 months or less.'; return; }
+      const ms = mem.map(m => ({id:m.id, name:m.name.trim(), color:m.color})).filter(m => m.name);
+      if(!ms.length){ err.textContent = 'Add at least one person.'; return; }
+      busy = true; $('#sSave').disabled = true; $('#sSave').textContent = 'Saving…';
+      const body = {name:$('#sName').value.trim() || 'Family Trip', start:s, end:en, members:ms, updatedAt:Date.now()};
+      const ok = await write(() => S.db.saveTrip(body));
+      busy = false;
+      if(ok){ const first = !S.trip; closeSheet(); toast(first ? 'All set — start adding activities!' : 'Trip updated'); setTimeout(() => askWhoIfNeeded(), 400); }
+      else if(document.contains($('#sSave'))){ $('#sSave').disabled = false; $('#sSave').textContent = 'Save'; }
+    });
+  }
+  $('#sheet').addEventListener('click', e => { if(e.target.closest('[data-close]')) closeSheet(); });
+
+  /* ---------- Writes ---------- */
+  async function saveActivity(id, data){
+    const prev = id ? S.acts.find(x => x.id===id) : null;
+    const body = {...data, by: (prev && prev.by) || S.me || '', createdAt: (prev && prev.createdAt) || Date.now(), updatedAt: Date.now()};
+    return write(() => S.db.saveAct(id, body));
+  }
+  /* Firestore applies the change on this phone straight away and sends it when there's
+     signal, so we don't wait for the server (handy on a trip with patchy reception). */
+  async function write(fn){
+    let p;
+    try{ p = fn(); }catch(e){ writeFailed(e); return false; }
+    Promise.resolve(p).catch(writeFailed);
+    return true;
+  }
+  function writeFailed(err){
+    console.error(err);
+    const code = err && err.code;
+    if(code==='permission-denied') toast('The database refused that change. Check the Firestore rules.', 5000);
+    else if(code==='resource-exhausted') toast('The free daily limit was reached — try again tomorrow.', 5000);
+    else toast('Couldn’t save that change. Please try again.', 4000);
+  }
+
+  /* ---------- Copy day ---------- */
+  function dayText(day){
+    const list = actsOn(day);
+    const lines = [`${fmtLong(day)}`];
+    list.forEach(a => {
+      const t = a.start ? fmtTime(a.start) + (a.end ? '–' + fmtTime(a.end) : '') : 'Any time';
+      const ms = members(); const sel = ms.filter(m => a.who.includes(m.id));
+      const w = (!sel.length || sel.length===ms.length) ? '' : ` (${sel.map(m=>m.name).join(', ')})`;
+      lines.push(`• ${t} — ${CATS[a.cat].emoji} ${a.title}${a.place?` @ ${a.place}`:''}${w}`);
+    });
+    return lines.join('\n');
+  }
+
+  /* ---------- Toast ---------- */
+  let toastT;
+  function toast(msg, ms){
+    const el = $('#toast'); el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), ms || 2200);
+  }
+  function saveSel(){ try{ localStorage.setItem('tripSel', S.sel||''); localStorage.setItem('tripTab', S.tab); }catch(e){} }
+
+  /* ---------- Events ---------- */
+  $('#main').addEventListener('click', async e => {
+    if(e.target.closest('a')) return;
+    const day = e.target.closest('[data-day]');
+    if(day){ S.sel = day.dataset.day; saveSel(); render(); const on = $('#strip .dchip.on'); if(on) on.scrollIntoView({inline:'nearest',block:'nearest',behavior:'smooth'}); window.scrollTo({top:0,behavior:'smooth'}); return; }
+    const add = e.target.closest('[data-add]');
+    if(add){ openActivity(null, add.dataset.add); return; }
+    const cp = e.target.closest('[data-copy]');
+    if(cp){
+      try{ await navigator.clipboard.writeText(dayText(cp.dataset.copy)); toast('Day plan copied — paste it in the family chat'); }
+      catch(err){ toast('Couldn’t copy on this device'); }
+      return;
+    }
+    if(e.target.closest('[data-setup]')){ openSettings(); return; }
+    const c = e.target.closest('[data-id]');
+    if(c) openActivity(c.dataset.id);
+  });
+  $('#main').addEventListener('keydown', e => {
+    if((e.key==='Enter'||e.key===' ') && e.target.matches('.card')){ e.preventDefault(); openActivity(e.target.dataset.id); }
+  });
+  $('#tabs').addEventListener('click', e => {
+    const b = e.target.closest('[data-tab]'); if(!b) return;
+    S.tab = b.dataset.tab; S.scrollToSel = true; saveSel(); render(); window.scrollTo({top:0});
+  });
+  $('#settingsBtn').addEventListener('click', openSettings);
+  $('#members').addEventListener('click', e => { if(e.target.closest('[data-pickme]')) askWhoIfNeeded(true); });
+  $('#fab').addEventListener('click', () => {
+    if(S.tab==='ideas') return openActivity(null, '');
+    const days = tripDays();
+    const d = S.sel && S.sel!=='all' ? S.sel : (days.includes(todayStr()) ? todayStr() : (days[0]||''));
+    openActivity(null, d);
+  });
+
+  /* ---------- Boot ---------- */
+  function markConfirmed(){
+    if(S.confirmed && !S.offline) return;
+    S.confirmed = true; S.offline = false; clearTimeout(loadTimer); renderBanner();
+  }
+  let loadTimer;
+  /* Small wrapper so the rest of the page talks to one simple store. */
+  function makeStore(fs){
+    const tripRef = doc(fs, 'trips', TRIP_ID);
+    const actsCol = collection(fs, 'trips', TRIP_ID, 'activities');
+    return {
+      saveTrip: body => setDoc(tripRef, body),
+      saveAct: (id, body) => setDoc(id ? doc(actsCol, id) : doc(actsCol), body),
+      deleteAct: id => deleteDoc(doc(actsCol, id)),
+      watchTrip: (next, err) => onSnapshot(tripRef, {includeMetadataChanges:true}, next, err),
+      watchActs: (next, err) => onSnapshot(actsCol, {includeMetadataChanges:true}, next, err)
+    };
+  }
+  async function boot(){
+    if(!FIREBASE_CONFIG.projectId){ S.booting = false; S.noConfig = true; render(); return; }
+    let fs;
+    try{
+      const app = initializeApp(FIREBASE_CONFIG);
+      try{ fs = initializeFirestore(app, {localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})}); }
+      catch(e){ fs = initializeFirestore(app, {}); }
+    }catch(e){ S.booting = false; S.loadErr = true; render(); return; }
+    S.db = makeStore(fs);
+    S.booting = false;
+    render();
+    loadTimer = setTimeout(() => { if(!S.confirmed){ S.offline = true; renderBanner(); } }, 10000);
+    S.db.watchTrip(snap => {
+      S.trip = snap.exists() ? snap.data() : null;
+      S.tripLoaded = true;
+      if(!snap.metadata.fromCache) markConfirmed();
+      render(); askWhoIfNeeded();
+    }, err => {
+      S.tripLoaded = true; clearTimeout(loadTimer); S.offline = false; S.loadErr = true;
+      console.error(err); render();
+    });
+    S.db.watchActs(snap => {
+      S.acts = snap.docs.map(norm);
+      if(!snap.metadata.fromCache) markConfirmed();
+      render();
+    }, err => {
+      clearTimeout(loadTimer); S.offline = false; S.loadErr = true;
+      console.error(err); render();
+    });
+  }
+  render();
+  boot();
+})();
+</script>
+</body>
+</html>
