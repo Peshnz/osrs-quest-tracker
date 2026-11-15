@@ -8,8 +8,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#FBF6EE; --card:#fff; --ink:#1E2A30; --muted:#6B7780; --line:#ECE3D6;
-    --teal:#0F5C63; --teal-d:#0A454B; --teal-l:#E2EFEC; --coral:#E8664A; --sand:#F4EADB;
+    /* South African flag colours */
+    --sa-green:#007A4D; --sa-gold:#FFB612; --sa-red:#DE3831; --sa-blue:#002395; --sa-black:#141414;
+    --bg:#FAF4E8; --card:#fff; --ink:#1A1A1A; --muted:#6E6A60; --line:#EADFCB;
+    --teal:#007A4D; --teal-d:#00563A; --teal-l:#E2F1E9; --coral:#DE3831; --sand:#F3E7D1;
     --r:16px;
   }
   *{box-sizing:border-box}
@@ -18,7 +20,9 @@
   .hidden{display:none!important}
 
   /* Header */
-  .top{background:var(--teal);color:#FDF8F0;padding:18px 16px 12px;position:sticky;top:0;z-index:5;box-shadow:0 2px 12px rgba(10,69,75,.18)}
+  .top{background:linear-gradient(160deg,#00603D 0%,var(--sa-green) 55%,#008C58 100%);color:#FFFDF7;padding:18px 16px 12px;position:sticky;top:0;z-index:5;box-shadow:0 2px 12px rgba(0,60,35,.25)}
+  .top::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:6px;background:linear-gradient(90deg,var(--sa-red) 0 16.6%,#fff 16.6% 33.3%,var(--sa-green) 33.3% 50%,var(--sa-gold) 50% 66.6%,var(--sa-black) 66.6% 83.3%,var(--sa-blue) 83.3% 100%)}
+  .flag{font-size:20px;vertical-align:2px;margin-left:6px}
   .title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;max-width:760px;margin:0 auto}
   h1{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:26px;line-height:1.1;margin:0;letter-spacing:-.01em}
   .sub{opacity:.82;font-size:13.5px;margin-top:4px}
@@ -30,10 +34,10 @@
   .av{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;font-weight:700;color:#fff;flex:none}
   .tabs{display:flex;gap:6px;margin:12px auto 0;max-width:760px;background:rgba(0,0,0,.16);padding:4px;border-radius:12px}
   .tabs button{flex:1;border:0;background:transparent;color:#FDF8F0;padding:8px;border-radius:9px;font-weight:600;opacity:.8}
-  .tabs button.on{background:#FDF8F0;color:var(--teal-d);opacity:1}
-  .count{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--coral);color:#fff;font-size:11px;line-height:18px;margin-left:4px}
+  .tabs button.on{background:var(--sa-gold);color:var(--sa-black);opacity:1}
+  .count{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--sa-red);color:#fff;font-size:11px;line-height:18px;margin-left:4px}
 
-  main{max-width:760px;margin:0 auto;padding:12px 14px 110px}
+  main{max-width:760px;margin:0 auto;padding:18px 14px 110px}
   .banner{max-width:760px;margin:10px auto 0;padding:10px 14px;background:#FFF3D6;border:1px solid #F1DCA6;border-radius:12px;font-size:13.5px;width:calc(100% - 28px)}
 
   /* Day strip */
@@ -42,11 +46,11 @@
   .dchip{flex:none;scroll-snap-align:center;width:58px;border:1.5px solid var(--line);background:var(--card);border-radius:14px;padding:7px 0 6px;display:flex;flex-direction:column;align-items:center;gap:1px}
   .dchip .dow{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
   .dchip .dn{font-family:Fraunces,Georgia,serif;font-size:21px;font-weight:600;line-height:1.1}
-  .dchip .dots{height:8px;font-size:9px;letter-spacing:1px;color:var(--coral);line-height:8px}
-  .dchip.today{border-color:var(--coral)}
+  .dchip .dots{height:8px;font-size:9px;letter-spacing:1px;color:var(--sa-red);line-height:8px}
+  .dchip.today{border-color:var(--sa-gold);border-width:2px}
   .dchip.on{background:var(--teal);border-color:var(--teal);color:#fff}
   .dchip.on .dow{color:rgba(255,255,255,.8)}
-  .dchip.on .dots{color:#FFD7CC}
+  .dchip.on .dots{color:var(--sa-gold)}
   .dchip.all .dn{font-size:15px;font-family:"DM Sans";font-weight:700;padding:3px 0 2px}
 
   /* Day blocks */
@@ -55,7 +59,7 @@
   .dhead{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin:4px 2px 10px}
   .dhead h2{font-family:Fraunces,Georgia,serif;font-size:20px;margin:0;font-weight:600}
   .dhead .dn2{font-size:12.5px;color:var(--muted);margin-top:2px}
-  .tag-today{display:inline-block;background:var(--coral);color:#fff;font:700 10.5px "DM Sans";text-transform:uppercase;letter-spacing:.06em;border-radius:6px;padding:2px 6px;vertical-align:3px;margin-left:6px}
+  .tag-today{display:inline-block;background:var(--sa-gold);color:var(--sa-black);font:700 10.5px "DM Sans";text-transform:uppercase;letter-spacing:.06em;border-radius:6px;padding:2px 6px;vertical-align:3px;margin-left:6px}
   .ghost{border:1.5px solid var(--line);background:var(--card);border-radius:10px;padding:6px 11px;font-size:13px;font-weight:600;color:var(--teal-d);flex:none}
 
   .card{display:flex;gap:12px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-left:5px solid var(--c);border-radius:var(--r);padding:12px 14px 12px 12px;margin-bottom:9px;box-shadow:0 1px 2px rgba(30,42,48,.04);cursor:pointer}
@@ -90,7 +94,7 @@
   .msg p{color:var(--muted);margin:0 auto 18px;max-width:360px;line-height:1.45}
   .loading{padding:40px;text-align:center;color:var(--muted)}
 
-  .fab{position:fixed;right:18px;bottom:22px;z-index:6;background:var(--coral);color:#fff;border:0;border-radius:99px;padding:15px 22px;font-weight:700;font-size:16px;box-shadow:0 6px 18px rgba(232,102,74,.4)}
+  .fab{position:fixed;right:18px;bottom:22px;z-index:6;background:var(--sa-red);color:#fff;border:0;border-radius:99px;padding:15px 22px;font-weight:700;font-size:16px;box-shadow:0 6px 18px rgba(222,56,49,.4)}
   .primary{background:var(--teal);color:#fff;border:0;border-radius:12px;padding:12px 18px;font-weight:700;font-size:15px}
 
   /* Sheet */
@@ -155,13 +159,13 @@ const API = "https://jsonblob.com/api/jsonBlob";
 
 (function(){
   const CATS = {
-    activity:{label:'Activity',emoji:'🎯',color:'#0F5C63'},
-    food:{label:'Food',emoji:'🍽️',color:'#E8664A'},
-    travel:{label:'Travel',emoji:'🚗',color:'#2E86AB'},
-    relax:{label:'Downtime',emoji:'🌴',color:'#5E9E3A'},
-    booking:{label:'Booking',emoji:'🎟️',color:'#7A5CFA'},
+    activity:{label:'Activity',emoji:'🦁',color:'#007A4D'},
+    food:{label:'Food & braai',emoji:'🔥',color:'#DE3831'},
+    travel:{label:'Travel',emoji:'🚙',color:'#002395'},
+    relax:{label:'Chill time',emoji:'🏖️',color:'#E0A100'},
+    booking:{label:'Booking',emoji:'🎟️',color:'#141414'},
   };
-  const PALETTE = ['#E8664A','#17A3A0','#E0A100','#5E9E3A','#7A5CFA','#D9417A','#2E86AB','#8C6A4F'];
+  const PALETTE = ['#DE3831','#007A4D','#E0A100','#002395','#141414','#C2185B','#00897B','#8D5A2B'];
 
   const S = {
     booting:true, db:null, user:null, me:null, canWrite:null, readOnly:false,
@@ -288,7 +292,7 @@ const API = "https://jsonblob.com/api/jsonBlob";
   /* ---------- Rendering ---------- */
   function renderHeader(){
     const t = S.trip;
-    $('#tripName').textContent = (t && t.name) ? t.name : 'Family Trip';
+    $('#tripName').innerHTML = esc((t && t.name) ? t.name : 'Family Trip') + '<span class="flag">🇿🇦</span>';
     const days = tripDays();
     if(t && days.length){
       $('#tripDates').textContent = `${fmtShort(days[0])} – ${fmtShort(days[days.length-1])} · ${days.length} day${days.length>1?'s':''}`;
@@ -325,7 +329,7 @@ const API = "https://jsonblob.com/api/jsonBlob";
     if(!S.tripLoaded){ main.innerHTML = `<div class="loading">Loading the plan…</div>`; return; }
     if(!S.trip){
       main.innerHTML = canEdit()
-        ? msgBox('🧳','Let’s plan this trip','Add the trip dates and who’s coming, then everyone can start filling in the days.','<button class="primary" data-setup>Set up the trip</button>')
+        ? msgBox('🧳','Let’s plan this lekker trip','Add the trip dates and who’s coming, then everyone can start filling in the days.','<button class="primary" data-setup>Set up the trip</button>')
         : msgBox('🧳','Nothing here yet','The trip hasn’t been set up yet. Check back once the organiser has added the dates.');
       return;
     }
@@ -340,7 +344,7 @@ const API = "https://jsonblob.com/api/jsonBlob";
     if(list.length) h += `<button class="ghost" data-copy="${day}">Copy</button>`;
     h += `</div>`;
     if(list.length) h += list.map(a => card(a, cl.get(a.id))).join('');
-    else h += `<div class="empty${compact?' slim':''}">${compact?'Free day — nothing planned yet':'Nothing planned for this day yet.'}</div>`;
+    else h += `<div class="empty${compact?' slim':''}">${compact?'Free day — nothing planned yet':'Nothing planned yet — time for a braai? 🔥'}</div>`;
     if(canEdit() && !compact) h += `<button class="addline" data-add="${day}">＋ Add to ${esc(fmtShort(day))}</button>`;
     return h + `</section>`;
   }
