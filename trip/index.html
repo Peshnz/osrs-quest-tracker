@@ -100,6 +100,29 @@
   .bar.outline{background:#fff;color:var(--ink);border:1.5px dashed var(--c);box-shadow:none}
   .bar.outline .bs{color:var(--muted);opacity:1}
   .tabs button{font-size:14px;padding:8px 4px}
+  /* Whole-trip horizontal timeline */
+  .tl-wrap{overflow-x:auto;margin:6px -14px 0;padding:2px 14px 14px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+  .tl{display:grid;row-gap:6px;width:max-content;position:relative}
+  .tl-h{text-align:center;padding:6px 2px 5px;margin:0 3px 2px;border-radius:12px;background:#fff;border:1.5px solid var(--line);cursor:pointer}
+  .tl-h .dow{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+  .tl-h .dn{font-family:Fraunces,Georgia,serif;font-size:19px;font-weight:600;line-height:1.15}
+  .tl-h .mo{font-size:10.5px;color:var(--muted)}
+  .tl-h.today{border-color:var(--sa-gold);border-width:2px;background:#FFF8E6}
+  .tl-bar{margin:0 3px;border-radius:10px;padding:6px 9px;color:#fff;font-size:12.5px;font-weight:600;min-height:32px;display:flex;align-items:center;cursor:pointer;overflow:clip;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+  .tl-bar .st{position:sticky;left:20px;display:flex;align-items:center;gap:6px;min-width:0;max-width:100%}
+  .tl-bar.flight span.t{white-space:normal;line-height:1.25}
+  .tl-bar span.t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tl-bar.flight{background:linear-gradient(120deg,#001A70,var(--sa-blue))}
+  .tl-bar.stay{border-radius:16px}
+  .tl-bar:active{transform:scale(.98)}
+  .tl-lbl{position:sticky;left:0;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:4px 3px 0}
+  .tl-col{border-left:1.5px dashed var(--line);padding:4px 3px 0;min-height:140px}
+  .tl-col.today{background:rgba(255,182,18,.09);border-radius:0 0 10px 10px}
+  .tcard{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-left:4px solid var(--c);border-radius:10px;padding:6px 8px;margin-bottom:6px;font-size:12.5px;line-height:1.3;cursor:pointer}
+  .tcard .tt{font-size:11px;color:var(--muted);font-weight:700}
+  .tcard .tn{font-weight:700;word-wrap:break-word}
+  .tl-add{display:block;width:100%;border:1.5px dashed #CFE0DC;background:transparent;border-radius:10px;padding:5px;color:var(--teal);font-weight:700;font-size:13px}
+  .tl-free{font-size:12px;color:var(--muted);text-align:center;padding:8px 2px}
   .addline{display:block;width:100%;margin-top:4px;border:1.5px dashed #CFE0DC;background:transparent;border-radius:12px;padding:10px;color:var(--teal);font-weight:600}
   .section-note{color:var(--muted);font-size:13.5px;margin:6px 2px 12px}
   h3.sec{font-family:Fraunces,Georgia,serif;font-size:17px;font-weight:600;margin:22px 2px 10px}
@@ -476,7 +499,60 @@ const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net
     return h + `</section>`;
   }
 
+  /* Whole trip: one column per day; stays and flights are bars spanning the
+     columns (a stay runs from the middle of check-in day to the middle of
+     check-out day, like a hotel night), activities stack under each day. */
+  function renderTimeline(days){
+    const N = days.length, W = 72;                 // each day = 2 half-columns of W px
+    const idx = d => days.indexOf(d);
+    const t = todayStr();
+    let h = `<div class="tl-wrap" id="tlWrap"><div class="tl" style="grid-template-columns:repeat(${N*2},${W}px)">`;
+    let row = 1;
+    days.forEach((d,i) => {
+      const dt = pd(d);
+      h += `<div class="tl-h ${d===t?'today':''}" data-day="${d}" style="grid-row:${row};grid-column:${2*i+1} / span 2">
+        <div class="dow">${esc(dt.toLocaleDateString(undefined,{weekday:'short'}))}</div><div class="dn">${dt.getDate()}</div><div class="mo">${esc(dt.toLocaleDateString(undefined,{month:'short'}))} · Day ${i+1}</div></div>`;
+    });
+    row++;
+    // Accommodation lanes
+    const first = days[0], last = days[N-1];
+    const spans = S.stays.filter(s => s.checkIn && s.checkOut && s.checkOut > first && s.checkIn <= last).map(s => {
+      const a = idx(s.checkIn) >= 0 ? 2*idx(s.checkIn)+2 : 1;
+      const b = idx(s.checkOut) >= 0 ? 2*idx(s.checkOut)+2 : 2*N+1;
+      return {s, a, b};
+    }).filter(x => x.b > x.a).sort((x,y) => x.a-y.a || y.b-x.b);
+    const lanes = [];
+    spans.forEach(x => { let L = lanes.findIndex(end => end <= x.a); if(L<0){ L = lanes.length; lanes.push(0); } lanes[L] = x.b; x.lane = L; });
+    spans.forEach(x => {
+      const n = nightsOf(x.s);
+      h += `<div class="tl-bar stay" role="button" tabindex="0" data-stay="${esc(x.s.id)}" style="grid-row:${row + x.lane};grid-column:${x.a} / ${x.b};background:${esc(x.s.color)}"><span class="st">🏨 <span class="t">${esc(x.s.name)}${n?` · ${n} night${n>1?'s':''}`:''}</span></span></div>`;
+    });
+    row += lanes.length;
+    // Flights (one lane per flight on the busiest day)
+    const fl = days.map(d => flightsOn(d));
+    const fLanes = Math.max(0, ...fl.map(f => f.length));
+    fl.forEach((list,i) => list.forEach((f,k) => {
+      h += `<div class="tl-bar flight" role="button" tabindex="0" data-flight="${esc(f.id)}" style="grid-row:${row + k};grid-column:${2*i+1} / span 2"><span class="st">✈️ <span class="t">${f.dep?esc(fmtTime(f.dep))+' ':''}${esc(route(f))}</span></span></div>`;
+    }));
+    row += fLanes;
+    // Activities
+    days.forEach((d,i) => {
+      const list = actsOn(d);
+      h += `<div class="tl-col ${d===t?'today':''}" style="grid-row:${row};grid-column:${2*i+1} / span 2">` +
+        (list.length ? list.map(a => `<div class="tcard" role="button" tabindex="0" data-id="${esc(a.id)}" style="--c:${CATS[a.cat].color}">
+            <div class="tt">${a.start?esc(fmtTime(a.start)):'Any time'}</div><div class="tn">${CATS[a.cat].emoji} ${esc(a.title)}</div></div>`).join('')
+          : `<div class="tl-free">Free day</div>`) +
+        (canEdit() ? `<button class="tl-add" data-add="${d}" aria-label="Add to ${esc(fmtShort(d))}">＋</button>` : '') +
+        `</div>`;
+    });
+    h += `</div></div>`;
+    if(!spans.length && !fLanes) h += `<p class="section-note">Add accommodation and flights in the 🧳 Travel tab and they’ll show as bars across the days.</p>`;
+    else h += `<p class="section-note">Swipe sideways to see the whole trip. Tap a day to open it.</p>`;
+    return h;
+  }
+
   function renderDays(main, keepScroll){
+    const oldTl = $('#tlWrap'); const keepTl = oldTl ? oldTl.scrollLeft : null;
     const days = tripDays();
     if(!S.sel || (S.sel!=='all' && !days.includes(S.sel))){
       S.sel = days.includes(todayStr()) ? todayStr() : (days[0] || 'all');
@@ -490,7 +566,7 @@ const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net
       return `<button class="dchip ${d===S.sel?'on':''} ${d===t?'today':''}" data-day="${d}" aria-label="${esc(fmtLong(d))}"><span class="dow">${esc(dt.toLocaleDateString(undefined,{weekday:'short'}))}</span><span class="dn">${dt.getDate()}</span><span class="dots">${n?'●'.repeat(Math.min(n,4)):''}</span>${flightsOn(d).length?'<span class="fl">✈️</span>':''}${(() => { const st = stayFor(d); return st ? `<span class="sbar" style="background:${esc(st.color)}" title="${esc(st.name)}"></span>` : ''; })()}</button>`;
     }).join('') + `</div>`;
     if(!days.length) h += `<div class="empty">The trip dates look wrong. Open ⚙️ settings to fix them.</div>`;
-    else if(S.sel==='all') h += days.map((d,i) => dayBlock(d,i,days.length,true)).join('');
+    else if(S.sel==='all') h += renderTimeline(days);
     else h += dayBlock(S.sel, days.indexOf(S.sel), days.length, false);
     main.innerHTML = h;
     const strip = $('#strip');
@@ -499,6 +575,11 @@ const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net
       if(on) strip.scrollLeft = Math.max(0, on.offsetLeft - strip.clientWidth/2 + on.offsetWidth/2);
       S.scrollToSel = false;
     } else if(keepScroll!=null) strip.scrollLeft = keepScroll;
+    const tl = $('#tlWrap');
+    if(tl){
+      if(keepTl!=null) tl.scrollLeft = keepTl;
+      else { const td = days.indexOf(todayStr()); if(td > 0) tl.scrollLeft = Math.max(0, td*144 - 20); }
+    }
   }
 
   /* ---------- Flights & accommodation ---------- */
@@ -982,7 +1063,7 @@ const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net
     if(c) openActivity(c.dataset.id);
   });
   $('#main').addEventListener('keydown', e => {
-    if((e.key==='Enter'||e.key===' ') && e.target.matches('.card,.bar')){ e.preventDefault(); e.target.click(); }
+    if((e.key==='Enter'||e.key===' ') && e.target.matches('.card,.bar,.tl-bar,.tcard')){ e.preventDefault(); e.target.click(); }
   });
   $('#tabs').addEventListener('click', e => {
     const b = e.target.closest('[data-tab]'); if(!b) return;
