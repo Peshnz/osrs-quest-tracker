@@ -134,7 +134,7 @@
       <h1 id="tripName">Family Trip</h1>
       <div id="tripDates" class="sub">Getting the plan…</div>
     </div>
-    <button id="settingsBtn" class="icon-btn hidden" aria-label="Trip settings">⚙️</button>
+    <div style="display:flex;gap:8px"><button id="shareBtn" class="icon-btn hidden" aria-label="Share the trip link">🔗</button><button id="settingsBtn" class="icon-btn hidden" aria-label="Trip settings">⚙️</button></div>
   </div>
   <div id="members" class="members"></div>
   <nav class="tabs" id="tabs">
@@ -149,23 +149,9 @@
 <div id="toast" class="toast" role="status"></div>
 
 <script type="module">
-/* ================= FIREBASE SETTINGS =================
-   Paste your Firebase web app config here (Firebase console →
-   Project settings → Your apps → Web app → SDK setup → Config). */
-const FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
-};
-/* Every trip lives under its own id, so this file can be reused for another trip later. */
-const TRIP_ID = "family-trip-2026";
-/* ===================================================== */
-
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+/* Shared storage: a free JSONBlob (jsonblob.com, no account needed).
+   The plan's id travels in the link, e.g. .../trip/#trip-1234abcd */
+const API = "https://jsonblob.com/api/jsonBlob";
 
 (function(){
   const CATS = {
@@ -182,7 +168,6 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
     trip:null, tripLoaded:false, acts:[], tab:'days', sel:null, names:{},
     confirmed:false, offline:false, loadErr:false, scrollToSel:true
   };
-  try{ S.me = localStorage.getItem('tripMe:'+TRIP_ID) || null; }catch(e){}
   try{ const s = localStorage.getItem('tripSel'); if(s) S.sel = s; const t = localStorage.getItem('tripTab'); if(t==='ideas'||t==='days') S.tab = t; }catch(e){}
 
   const $ = s => document.querySelector(s);
@@ -274,7 +259,7 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
     $('#whoPick').addEventListener('click', e => {
       const b = e.target.closest('[data-me]'); if(!b) return;
       S.me = b.dataset.me;
-      try{ localStorage.setItem('tripMe:'+TRIP_ID, S.me); }catch(err){}
+      try{ localStorage.setItem('tripMe:'+BLOB, S.me); }catch(err){}
       closeSheet(); render();
       const m = memberById(S.me); if(m) toast(`Hi ${m.name}! 👋`);
     });
@@ -311,7 +296,8 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
       $('#tripDates').textContent = S.booting || !S.tripLoaded ? 'Getting the plan…' : 'Not set up yet';
     }
     $('#members').innerHTML = members().map(m => `<button type="button" class="mchip${m.id===S.me?' me':''}" data-pickme>${av(m)}${esc(m.name)}${m.id===S.me?' <b>(you)</b>':''}</button>`).join('');
-    $('#settingsBtn').classList.toggle('hidden', !(t || canEdit()) || !S.db);
+    $('#settingsBtn').classList.toggle('hidden', !t);
+    $('#shareBtn').classList.toggle('hidden', !(t && BLOB));
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab===S.tab));
     $('#tabs').classList.toggle('hidden', !t);
     const ideas = S.acts.filter(a => !a.date).length;
@@ -334,7 +320,7 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
     const stripEl = $('#strip'); const keepScroll = stripEl ? stripEl.scrollLeft : null;
     $('#fab').classList.toggle('hidden', !(canEdit() && S.trip));
     if(S.booting){ main.innerHTML = `<div class="loading">Loading the plan…</div>`; return; }
-    if(S.noConfig){ main.innerHTML = msgBox('🔧','Almost ready','This planner still needs its Firebase settings added to the file before anyone can use it.'); return; }
+    if(S.missing){ main.innerHTML = msgBox('🤷','Can\u2019t find this trip','This link\u2019s plan no longer exists (plans are removed after 75 days without use). You can start a new one.','<button class="primary" data-newtrip>Start a new trip</button>'); return; }
     if(!S.db){ main.innerHTML = msgBox('📡','Couldn’t start the planner','Check your connection and reload the page.'); return; }
     if(!S.tripLoaded){ main.innerHTML = `<div class="loading">Loading the plan…</div>`; return; }
     if(!S.trip){
@@ -579,7 +565,7 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
       const body = {name:$('#sName').value.trim() || 'Family Trip', start:s, end:en, members:ms, updatedAt:Date.now()};
       const ok = await write(() => S.db.saveTrip(body));
       busy = false;
-      if(ok){ const first = !S.trip; closeSheet(); toast(first ? 'All set — start adding activities!' : 'Trip updated'); setTimeout(() => askWhoIfNeeded(), 400); }
+      if(ok){ const first = !S.trip; closeSheet(); toast(first ? 'All set — start adding activities!' : 'Trip updated'); setTimeout(() => askWhoIfNeeded(), 1200); }
       else if(document.contains($('#sSave'))){ $('#sSave').disabled = false; $('#sSave').textContent = 'Save'; }
     });
   }
@@ -591,8 +577,8 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
     const body = {...data, by: (prev && prev.by) || S.me || '', createdAt: (prev && prev.createdAt) || Date.now(), updatedAt: Date.now()};
     return write(() => S.db.saveAct(id, body));
   }
-  /* Firestore applies the change on this phone straight away and sends it when there's
-     signal, so we don't wait for the server (handy on a trip with patchy reception). */
+  /* Changes show on this phone straight away and are sent when there's signal,
+     so nobody waits on a slow connection mid-trip. */
   async function write(fn){
     let p;
     try{ p = fn(); }catch(e){ writeFailed(e); return false; }
@@ -602,8 +588,7 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
   function writeFailed(err){
     console.error(err);
     const code = err && err.code;
-    if(code==='permission-denied') toast('The database refused that change. Check the Firestore rules.', 5000);
-    else if(code==='resource-exhausted') toast('The free daily limit was reached — try again tomorrow.', 5000);
+    if(code==='noid' || (!BLOB)) toast('Couldn\u2019t create the shared plan. Check your signal and try again.', 5000);
     else toast('Couldn’t save that change. Please try again.', 4000);
   }
 
@@ -642,6 +627,7 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
       return;
     }
     if(e.target.closest('[data-setup]')){ openSettings(); return; }
+    if(e.target.closest('[data-newtrip]')){ try{ localStorage.removeItem(LS('current')); }catch(err){} location.href = location.pathname; return; }
     const c = e.target.closest('[data-id]');
     if(c) openActivity(c.dataset.id);
   });
@@ -653,6 +639,20 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
     S.tab = b.dataset.tab; S.scrollToSel = true; saveSel(); render(); window.scrollTo({top:0});
   });
   $('#settingsBtn').addEventListener('click', openSettings);
+  $('#shareBtn').addEventListener('click', openShare);
+  function openShare(){
+    const link = shareLink();
+    openSheet(`<div class="shead"><h2>Share the trip</h2><button class="x" data-close aria-label="Close">✕</button></div>
+      <p class="hint" style="font-size:14px;margin:0 0 12px">Send this link to the family. Anyone with it can see and add to the plan — no app or account needed.</p>
+      <input class="in" id="shareLink" readonly value="${esc(link)}">
+      <div class="actions"><button type="button" class="primary" id="copyLink">Copy link</button></div>
+      <p class="hint">Tip: on a phone, open the link and use “Add to Home screen” so it opens like an app.</p>`);
+    $('#shareLink').addEventListener('focus', e => e.target.select());
+    $('#copyLink').addEventListener('click', async () => {
+      try{ await navigator.clipboard.writeText(link); toast('Link copied — paste it in the family chat'); }
+      catch(e){ $('#shareLink').focus(); $('#shareLink').select(); toast('Press and hold the link to copy it'); }
+    });
+  }
   $('#members').addEventListener('click', e => { if(e.target.closest('[data-pickme]')) askWhoIfNeeded(true); });
   $('#fab').addEventListener('click', () => {
     if(S.tab==='ideas') return openActivity(null, '');
@@ -667,48 +667,120 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
     S.confirmed = true; S.offline = false; clearTimeout(loadTimer); renderBanner();
   }
   let loadTimer;
-  /* Small wrapper so the rest of the page talks to one simple store. */
-  function makeStore(fs){
-    const tripRef = doc(fs, 'trips', TRIP_ID);
-    const actsCol = collection(fs, 'trips', TRIP_ID, 'activities');
-    return {
-      saveTrip: body => setDoc(tripRef, body),
-      saveAct: (id, body) => setDoc(id ? doc(actsCol, id) : doc(actsCol), body),
-      deleteAct: id => deleteDoc(doc(actsCol, id)),
-      watchTrip: (next, err) => onSnapshot(tripRef, {includeMetadataChanges:true}, next, err),
-      watchActs: (next, err) => onSnapshot(actsCol, {includeMetadataChanges:true}, next, err)
-    };
+  /* ---------- Shared storage (JSONBlob) ----------
+     The whole plan is one small JSON file: {trip, acts:{id:activity}}.
+     Changes are queued, applied on top of the latest copy and saved, so two
+     phones adding things at once don't wipe each other's work. */
+  let BLOB = null, remote = {trip:null, acts:{}}, pending = [], flushing = false, gen = 0;
+  const LS = k => 'tripPlan:' + k;
+  const lsGet = k => { try{ return JSON.parse(localStorage.getItem(LS(k))); }catch(e){ return null; } };
+  const lsSet = (k,v) => { try{ localStorage.setItem(LS(k), JSON.stringify(v)); }catch(e){} };
+  function hashId(){ const m = location.hash.match(/^#trip-([A-Za-z0-9_-]{6,80})$/); return m ? m[1] : null; }
+  function shareLink(){ return location.origin + location.pathname + '#trip-' + BLOB; }
+  function clean(st){
+    const out = {trip:null, acts:{}};
+    if(st && typeof st==='object'){
+      if(st.trip && typeof st.trip==='object') out.trip = st.trip;
+      if(st.acts && typeof st.acts==='object' && !Array.isArray(st.acts))
+        for(const [k,v] of Object.entries(st.acts)) if(v && typeof v==='object' && /^[A-Za-z0-9_-]{1,40}$/.test(k)) out.acts[k] = v;
+    }
+    return out;
   }
-  async function boot(){
-    if(!FIREBASE_CONFIG.projectId){ S.booting = false; S.noConfig = true; render(); return; }
-    let fs;
+  function applyOp(st, op){
+    const s = {trip:st.trip, acts:{...st.acts}};
+    if(op.t==='trip') s.trip = op.body;
+    else if(op.t==='act') s.acts[op.id] = op.body;
+    else if(op.t==='del') delete s.acts[op.id];
+    return s;
+  }
+  function view(){
+    let s = remote; for(const op of pending) s = applyOp(s, op);
+    S.trip = s.trip; S.tripLoaded = true;
+    S.acts = Object.entries(s.acts).map(([id,d]) => norm({id, data:() => d}));
+    render(); askWhoIfNeeded();
+  }
+  function persist(){ if(BLOB){ lsSet('remote:'+BLOB, remote); lsSet('pending:'+BLOB, pending); } }
+  async function api(method, id, body){
+    const res = await fetch(id ? API + '/' + id : API, {
+      method, cache:'no-store',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if(res.status===404){ const e = new Error('missing'); e.code = 'missing'; throw e; }
+    if(!res.ok){ const e = new Error('http ' + res.status); e.code = 'http'; throw e; }
+    return res;
+  }
+  async function fetchRemote(){
+    if(!BLOB || flushing) return;
+    const g = gen;
     try{
-      const app = initializeApp(FIREBASE_CONFIG);
-      try{ fs = initializeFirestore(app, {localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})}); }
-      catch(e){ fs = initializeFirestore(app, {}); }
-    }catch(e){ S.booting = false; S.loadErr = true; render(); return; }
-    S.db = makeStore(fs);
-    S.booting = false;
-    render();
-    loadTimer = setTimeout(() => { if(!S.confirmed){ S.offline = true; renderBanner(); } }, 10000);
-    S.db.watchTrip(snap => {
-      S.trip = snap.exists() ? snap.data() : null;
-      S.tripLoaded = true;
-      if(!snap.metadata.fromCache) markConfirmed();
-      render(); askWhoIfNeeded();
-    }, err => {
-      S.tripLoaded = true; clearTimeout(loadTimer); S.offline = false; S.loadErr = true;
-      console.error(err); render();
-    });
-    S.db.watchActs(snap => {
-      S.acts = snap.docs.map(norm);
-      if(!snap.metadata.fromCache) markConfirmed();
-      render();
-    }, err => {
-      clearTimeout(loadTimer); S.offline = false; S.loadErr = true;
-      console.error(err); render();
-    });
+      const st = clean(await (await api('GET', BLOB)).json());
+      if(g!==gen || flushing) return;
+      remote = st; persist(); markConfirmed(); view();
+    }catch(e){
+      if(e.code==='missing'){ S.missing = true; S.tripLoaded = true; clearTimeout(loadTimer); render(); }
+      else { S.offline = true; renderBanner(); }
+    }
   }
+  async function flush(){
+    if(flushing || !BLOB || !pending.length) return;
+    flushing = true;
+    try{
+      while(pending.length){
+        const n = pending.length;
+        const latest = clean(await (await api('GET', BLOB)).json());
+        let next = latest; for(const op of pending.slice(0,n)) next = applyOp(next, op);
+        await api('PUT', BLOB, next);
+        remote = next; pending = pending.slice(n); gen++; persist();
+      }
+      markConfirmed();
+    }catch(e){
+      if(e.code==='missing'){ S.missing = true; }
+      S.offline = true; renderBanner();
+    }
+    flushing = false; view();
+  }
+  function queue(op){ pending.push(op); persist(); view(); flush(); }
+  async function createBlob(trip){
+    const res = await api('POST', null, {trip, acts:{}});
+    const loc = res.headers.get('Location') || res.headers.get('location') || '';
+    const id = res.headers.get('X-jsonblob') || loc.split('/').pop();
+    if(!id || !/^[A-Za-z0-9_-]{6,80}$/.test(id)) throw Object.assign(new Error('no id'), {code:'noid'});
+    useBlob(id);
+    remote = {trip, acts:{}}; persist(); markConfirmed(); view();
+  }
+  function useBlob(id){
+    BLOB = id;
+    try{ localStorage.setItem(LS('current'), id); }catch(e){}
+    if(hashId()!==id) history.replaceState(null, '', '#trip-' + id);
+    remote = clean(lsGet('remote:'+id)); pending = Array.isArray(lsGet('pending:'+id)) ? lsGet('pending:'+id) : [];
+    try{ S.me = localStorage.getItem('tripMe:'+id) || null; }catch(e){ S.me = null; }
+  }
+  const store = {
+    saveTrip: async body => {
+      if(!BLOB) return createBlob(body);
+      queue({t:'trip', body});
+    },
+    saveAct: (id, body) => queue({t:'act', id: id || ('a' + Date.now().toString(36) + uid()), body}),
+    deleteAct: id => queue({t:'del', id})
+  };
+  async function boot(){
+    S.db = store;
+    let id = hashId();
+    if(!id){ try{ id = localStorage.getItem(LS('current')); }catch(e){} }
+    S.booting = false;
+    if(!id){ S.tripLoaded = true; S.confirmed = true; render(); return; }
+    useBlob(id);
+    if(remote.trip) view(); else render();
+    loadTimer = setTimeout(() => { if(!S.confirmed){ S.offline = true; renderBanner(); } }, 10000);
+    await flush(); await fetchRemote();
+    S.tripLoaded = true; render();
+  }
+  setInterval(() => { if(!document.hidden && BLOB){ pending.length ? flush() : fetchRemote(); } }, 15000);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden && BLOB){ flush().then(fetchRemote); } });
+  window.addEventListener('online', () => { if(BLOB){ flush().then(fetchRemote); } });
+  window.addEventListener('hashchange', () => { const id = hashId(); if(id && id!==BLOB) location.reload(); });
+
   render();
   boot();
 })();
