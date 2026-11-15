@@ -84,6 +84,19 @@
 
   .empty{border:1.5px dashed #DCCFBD;border-radius:var(--r);padding:16px;text-align:center;color:var(--muted);font-size:14px}
   .empty.slim{padding:10px;font-size:13px}
+  .dchip{overflow:hidden;position:relative}
+  .dchip .sbar{position:absolute;left:0;right:0;bottom:0;height:5px}
+  .dchip .fl{position:absolute;bottom:6px;right:5px;font-size:9px;line-height:9px}
+  .bar{display:flex;align-items:center;gap:11px;border-radius:14px;padding:10px 13px;margin-bottom:8px;color:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .bar:active{transform:scale(.99)}
+  .bar .be{font-size:22px;flex:none}
+  .bar .bm{font-weight:700;font-size:15px;line-height:1.25;word-wrap:break-word}
+  .bar .bs{font-size:12.5px;opacity:.88;margin-top:2px;word-wrap:break-word}
+  .bar .bb{min-width:0;flex:1}
+  .bar.flight{background:linear-gradient(120deg,#001A70,var(--sa-blue))}
+  .bar.outline{background:#fff;color:var(--ink);border:1.5px dashed var(--c);box-shadow:none}
+  .bar.outline .bs{color:var(--muted);opacity:1}
+  .tabs button{font-size:14px;padding:8px 4px}
   .addline{display:block;width:100%;margin-top:4px;border:1.5px dashed #CFE0DC;background:transparent;border-radius:12px;padding:10px;color:var(--teal);font-weight:600}
   .section-note{color:var(--muted);font-size:13.5px;margin:6px 2px 12px}
   h3.sec{font-family:Fraunces,Georgia,serif;font-size:17px;font-weight:600;margin:22px 2px 10px}
@@ -143,6 +156,7 @@
   <div id="members" class="members"></div>
   <nav class="tabs" id="tabs">
     <button data-tab="days" class="on">📅 Calendar</button>
+    <button data-tab="travel">🧳 Travel</button>
     <button data-tab="ideas">💡 Ideas<span id="ideaCount"></span></button>
   </nav>
 </header>
@@ -169,10 +183,10 @@ const API = "https://jsonblob.com/api/jsonBlob";
 
   const S = {
     booting:true, db:null, user:null, me:null, canWrite:null, readOnly:false,
-    trip:null, tripLoaded:false, acts:[], tab:'days', sel:null, names:{},
+    trip:null, tripLoaded:false, acts:[], stays:[], flights:[], tab:'days', sel:null, names:{},
     confirmed:false, offline:false, loadErr:false, scrollToSel:true
   };
-  try{ const s = localStorage.getItem('tripSel'); if(s) S.sel = s; const t = localStorage.getItem('tripTab'); if(t==='ideas'||t==='days') S.tab = t; }catch(e){}
+  try{ const s = localStorage.getItem('tripSel'); if(s) S.sel = s; const t = localStorage.getItem('tripTab'); if(t==='ideas'||t==='days'||t==='travel') S.tab = t; }catch(e){}
 
   const $ = s => document.querySelector(s);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -333,7 +347,7 @@ const API = "https://jsonblob.com/api/jsonBlob";
         : msgBox('🧳','Nothing here yet','The trip hasn’t been set up yet. Check back once the organiser has added the dates.');
       return;
     }
-    if(S.tab==='days') renderDays(main, keepScroll); else renderIdeas(main);
+    if(S.tab==='days') renderDays(main, keepScroll); else if(S.tab==='travel') renderTravel(main); else renderIdeas(main);
   }
 
   function dayBlock(day, idx, total, compact){
@@ -341,8 +355,9 @@ const API = "https://jsonblob.com/api/jsonBlob";
     const cl = clashes(list);
     const isToday = day===todayStr();
     let h = `<section class="day"><div class="dhead"><div><h2>${esc(fmtLong(day))}${isToday?'<span class="tag-today">Today</span>':''}</h2><div class="dn2">Day ${idx+1} of ${total}${list.length?` · ${list.length} planned`:''}</div></div>`;
-    if(list.length) h += `<button class="ghost" data-copy="${day}">Copy</button>`;
+    if(list.length || flightsOn(day).length || stayEvents(day).length) h += `<button class="ghost" data-copy="${day}">Copy</button>`;
     h += `</div>`;
+    h += dayBars(day);
     if(list.length) h += list.map(a => card(a, cl.get(a.id))).join('');
     else h += `<div class="empty${compact?' slim':''}">${compact?'Free day — nothing planned yet':'Nothing planned yet — time for a braai? 🔥'}</div>`;
     if(canEdit() && !compact) h += `<button class="addline" data-add="${day}">＋ Add to ${esc(fmtShort(day))}</button>`;
@@ -360,7 +375,7 @@ const API = "https://jsonblob.com/api/jsonBlob";
     h += days.map(d => {
       const n = S.acts.filter(a => a.date===d).length;
       const dt = pd(d);
-      return `<button class="dchip ${d===S.sel?'on':''} ${d===t?'today':''}" data-day="${d}" aria-label="${esc(fmtLong(d))}"><span class="dow">${esc(dt.toLocaleDateString(undefined,{weekday:'short'}))}</span><span class="dn">${dt.getDate()}</span><span class="dots">${n?'●'.repeat(Math.min(n,4)):''}</span></button>`;
+      return `<button class="dchip ${d===S.sel?'on':''} ${d===t?'today':''}" data-day="${d}" aria-label="${esc(fmtLong(d))}"><span class="dow">${esc(dt.toLocaleDateString(undefined,{weekday:'short'}))}</span><span class="dn">${dt.getDate()}</span><span class="dots">${n?'●'.repeat(Math.min(n,4)):''}</span>${flightsOn(d).length?'<span class="fl">✈️</span>':''}${(() => { const st = stayFor(d); return st ? `<span class="sbar" style="background:${esc(st.color)}" title="${esc(st.name)}"></span>` : ''; })()}</button>`;
     }).join('') + `</div>`;
     if(!days.length) h += `<div class="empty">The trip dates look wrong. Open ⚙️ settings to fix them.</div>`;
     else if(S.sel==='all') h += days.map((d,i) => dayBlock(d,i,days.length,true)).join('');
@@ -372,6 +387,201 @@ const API = "https://jsonblob.com/api/jsonBlob";
       if(on) strip.scrollLeft = Math.max(0, on.offsetLeft - strip.clientWidth/2 + on.offsetWidth/2);
       S.scrollToSel = false;
     } else if(keepScroll!=null) strip.scrollLeft = keepScroll;
+  }
+
+  /* ---------- Flights & accommodation ---------- */
+  const STAY_COLORS = ['#007A4D','#8D5A2B','#C2185B','#00897B','#141414','#DE3831'];
+  function normFlight(id, d){
+    d = d || {};
+    return { id, flightNo:String(d.flightNo||''), airline:String(d.airline||''), from:String(d.from||''), to:String(d.to||''),
+      date: validDate(d.date) ? d.date : '', dep: mins(d.dep)!=null ? d.dep : '', arr: mins(d.arr)!=null ? d.arr : '',
+      ref:String(d.ref||''), who: Array.isArray(d.who) ? d.who.filter(x => typeof x==='string') : [], notes:String(d.notes||''), createdAt:Number(d.createdAt)||0 };
+  }
+  function normStay(id, d){
+    d = d || {};
+    return { id, name:String(d.name||'Accommodation'), checkIn: validDate(d.checkIn) ? d.checkIn : '', checkOut: validDate(d.checkOut) ? d.checkOut : '',
+      inTime: mins(d.inTime)!=null ? d.inTime : '', outTime: mins(d.outTime)!=null ? d.outTime : '', address:String(d.address||''),
+      ref:String(d.ref||''), link:String(d.link||''), notes:String(d.notes||''),
+      color: STAY_COLORS.includes(d.color) ? d.color : STAY_COLORS[0], createdAt:Number(d.createdAt)||0 };
+  }
+  function sortFlights(a,b){ return (a.date||'9').localeCompare(b.date||'9') || (mins(a.dep)??9999)-(mins(b.dep)??9999); }
+  function flightsOn(day){ return S.flights.filter(f => f.date===day).sort(sortFlights); }
+  function stayFor(day){ return S.stays.find(s => s.checkIn && s.checkOut && s.checkIn<=day && day<s.checkOut); }
+  function nightsOf(s){ return (s.checkIn && s.checkOut) ? Math.round((pd(s.checkOut)-pd(s.checkIn))/864e5) : 0; }
+  function stayEvents(day){
+    const out = [];
+    S.stays.forEach(s => { if(s.checkOut===day) out.push({k:'out', s}); });
+    S.stays.forEach(s => {
+      if(s.checkIn===day) out.push({k:'in', s});
+      else if(s.checkIn && s.checkOut && s.checkIn<day && day<s.checkOut) out.push({k:'night', s});
+    });
+    return out;
+  }
+  function route(f){ return [f.from, f.to].filter(Boolean).join(' → ') || 'Flight'; }
+  function whoText(who){
+    const ms = members(); const sel = ms.filter(m => who.includes(m.id));
+    return (!sel.length || sel.length===ms.length) ? '' : sel.map(m => m.name).join(', ');
+  }
+  function flightBar(f, showDate){
+    const sub = [f.flightNo, f.airline, f.arr?`lands ${fmtTime(f.arr)}`:'', f.ref?`Ref ${f.ref}`:'', whoText(f.who)].filter(Boolean).join(' · ');
+    const when = [showDate && f.date ? fmtShort(f.date) : '', f.dep ? fmtTime(f.dep) : ''].filter(Boolean).join(' · ');
+    return `<div class="bar flight" role="button" tabindex="0" data-flight="${esc(f.id)}"><span class="be">✈️</span><div class="bb">
+      <div class="bm">${when?esc(when)+' · ':''}${esc(route(f))}</div>${sub?`<div class="bs">${esc(sub)}</div>`:''}</div></div>`;
+  }
+  function stayBar(ev){
+    const s = ev.s; const n = nightsOf(s);
+    let emo, main, sub;
+    if(ev.k==='in'){ emo='🔑'; main=`Check in · ${s.name}`; sub=[s.inTime?`from ${fmtTime(s.inTime)}`:'', n?`${n} night${n>1?'s':''}`:'', s.address].filter(Boolean).join(' · '); }
+    else if(ev.k==='out'){ emo='🧳'; main=`Check out · ${s.name}`; sub=[s.outTime?`by ${fmtTime(s.outTime)}`:'', s.ref?`Ref ${s.ref}`:''].filter(Boolean).join(' · '); }
+    else { const i = Math.round((pd(ev.day||s.checkIn)-pd(s.checkIn))/864e5)+1; emo='🏨'; main=`Staying at ${s.name}`; sub=[`Night ${i} of ${n}`, s.address].filter(Boolean).join(' · '); }
+    const style = ev.k==='out' ? `class="bar outline" style="--c:${esc(s.color)}"` : `class="bar" style="background:${esc(s.color)}"`;
+    return `<div ${style} role="button" tabindex="0" data-stay="${esc(s.id)}"><span class="be">${emo}</span><div class="bb"><div class="bm">${esc(main)}</div>${sub?`<div class="bs">${esc(sub)}</div>`:''}</div></div>`;
+  }
+  function dayBars(day){
+    const evs = stayEvents(day).map(e => ({...e, day}));
+    return evs.filter(e => e.k==='out').map(stayBar).join('')
+      + flightsOn(day).map(f => flightBar(f,false)).join('')
+      + evs.filter(e => e.k!=='out').map(stayBar).join('');
+  }
+  function renderTravel(main){
+    const fl = [...S.flights].sort(sortFlights);
+    const st = [...S.stays].sort((a,b) => (a.checkIn||'9').localeCompare(b.checkIn||'9'));
+    let h = `<h3 class="sec" style="margin-top:6px">✈️ Flights</h3>`;
+    h += fl.length ? fl.map(f => flightBar(f,true)).join('') : `<div class="empty slim">No flights added yet.</div>`;
+    if(canEdit()) h += `<button class="addline" data-addflight>＋ Add a flight</button>`;
+    h += `<h3 class="sec">🏨 Accommodation</h3>`;
+    h += st.length ? st.map(s => {
+      const n = nightsOf(s);
+      const sub = [s.checkIn&&s.checkOut ? `${fmtShort(s.checkIn)} → ${fmtShort(s.checkOut)}` : '', n?`${n} night${n>1?'s':''}`:'', s.address].filter(Boolean).join(' · ');
+      return `<div class="bar" style="background:${esc(s.color)}" role="button" tabindex="0" data-stay="${esc(s.id)}"><span class="be">🏨</span><div class="bb"><div class="bm">${esc(s.name)}</div>${sub?`<div class="bs">${esc(sub)}</div>`:''}</div></div>`;
+    }).join('') : `<div class="empty slim">No accommodation added yet.</div>`;
+    if(canEdit()) h += `<button class="addline" data-addstay>＋ Add accommodation</button>`;
+    h += `<p class="section-note" style="margin-top:16px">These show as bars on the calendar days they fall on.</p>`;
+    main.innerHTML = h;
+  }
+  function armDelete(btn, fn){
+    let armed = false;
+    btn.addEventListener('click', async () => {
+      if(!armed){ armed = true; btn.classList.add('confirm'); btn.textContent = 'Tap again to delete';
+        setTimeout(() => { if(document.contains(btn)){ armed = false; btn.classList.remove('confirm'); btn.textContent = 'Delete'; } }, 3500); return; }
+      btn.disabled = true;
+      if(await fn()){ closeSheet(); toast('Deleted'); }
+    });
+  }
+  function dateOpts(sel, allowBlank){
+    const days = tripDays();
+    let o = allowBlank ? `<option value="">Choose a day…</option>` : '';
+    if(sel && !days.includes(sel)) o += `<option value="${sel}">${esc(fmtShort(sel))}</option>`;
+    return o + days.map(d => `<option value="${d}" ${d===sel?'selected':''}>${esc(fmtShort(d))}</option>`).join('');
+  }
+  function openFlight(id){
+    const f = id ? S.flights.find(x => x.id===id) : null; if(id && !f) return;
+    const v = f || normFlight('', {date: S.sel && S.sel!=='all' ? S.sel : ''});
+    let who = v.who.filter(x => memberById(x));
+    openSheet(`<div class="shead"><h2>${f?'Edit flight':'Add a flight'}</h2><button class="x" data-close aria-label="Close">✕</button></div>
+      <form id="flForm" autocomplete="off">
+        <div class="row2">
+          <div><label class="f" for="flFrom">From</label><input class="in" id="flFrom" maxlength="40" placeholder="e.g. AKL" value="${esc(v.from)}"></div>
+          <div><label class="f" for="flTo">To</label><input class="in" id="flTo" maxlength="40" placeholder="e.g. CPT" value="${esc(v.to)}"></div>
+        </div>
+        <label class="f" for="flDate">Date</label>
+        <input class="in" type="date" id="flDate" value="${esc(v.date)}">
+        <div class="row2">
+          <div><label class="f" for="flDep">Departs</label><input class="in" type="time" id="flDep" value="${esc(v.dep)}"></div>
+          <div><label class="f" for="flArr">Lands</label><input class="in" type="time" id="flArr" value="${esc(v.arr)}"></div>
+        </div>
+        <div class="row2">
+          <div><label class="f" for="flNo">Flight no.</label><input class="in" id="flNo" maxlength="20" placeholder="e.g. SA 312" value="${esc(v.flightNo)}"></div>
+          <div><label class="f" for="flAir">Airline</label><input class="in" id="flAir" maxlength="40" value="${esc(v.airline)}"></div>
+        </div>
+        <label class="f" for="flRef">Booking ref</label>
+        <input class="in" id="flRef" maxlength="40" value="${esc(v.ref)}">
+        <label class="f">Who's flying</label>
+        <div class="chips" id="flWho"></div>
+        <label class="f" for="flNotes">Notes</label>
+        <textarea class="in" id="flNotes" maxlength="1000" placeholder="Terminal, baggage, seats…">${esc(v.notes)}</textarea>
+        <div class="err" id="flErr"></div>
+        <div class="actions">${f?'<button type="button" class="danger" id="flDel">Delete</button>':''}<button type="submit" class="primary" id="flSave">${f?'Save changes':'Add flight'}</button></div>
+      </form>`);
+    function drawWho(){
+      const ms = members(); const every = !who.length || who.length===ms.length;
+      $('#flWho').innerHTML = `<button type="button" class="chip ${every?'on':''}" data-who="*">👨‍👩‍👧‍👦 Everyone</button>` +
+        ms.map(m => `<button type="button" class="chip ${!every && who.includes(m.id)?'on':''}" data-who="${esc(m.id)}">${av(m)}${esc(m.name)}</button>`).join('');
+    }
+    drawWho();
+    $('#flWho').addEventListener('click', e => {
+      const b = e.target.closest('[data-who]'); if(!b) return; const ms = members(); const k = b.dataset.who;
+      if(k==='*') who = []; else { if(!who.length || who.length===ms.length) who = [k]; else who = who.includes(k) ? who.filter(x => x!==k) : [...who,k]; if(who.length===ms.length) who = []; }
+      drawWho();
+    });
+    $('#flForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const data = { from:$('#flFrom').value.trim().toUpperCase(), to:$('#flTo').value.trim().toUpperCase(), date:$('#flDate').value,
+        dep:$('#flDep').value, arr:$('#flArr').value, flightNo:$('#flNo').value.trim().toUpperCase(), airline:$('#flAir').value.trim(),
+        ref:$('#flRef').value.trim(), who:[...who], notes:$('#flNotes').value.trim(), createdAt:(f&&f.createdAt)||Date.now(), updatedAt:Date.now() };
+      if(!data.from && !data.to && !data.flightNo){ $('#flErr').textContent = 'Add where it’s from and to, or the flight number.'; return; }
+      if(!validDate(data.date)){ $('#flErr').textContent = 'Pick the date of the flight.'; return; }
+      if(await write(() => S.db.saveItem('flights', f ? f.id : null, data))){ closeSheet(); toast(f ? 'Flight saved' : 'Flight added ✈️'); }
+    });
+    if(f) armDelete($('#flDel'), () => write(() => S.db.deleteItem('flights', f.id)));
+  }
+  function openStay(id){
+    const s = id ? S.stays.find(x => x.id===id) : null; if(id && !s) return;
+    const days = tripDays();
+    const v = s || normStay('', {checkIn: days[0]||'', checkOut: days[days.length-1]||'', color: STAY_COLORS[S.stays.length % STAY_COLORS.length]});
+    let color = v.color;
+    openSheet(`<div class="shead"><h2>${s?'Edit accommodation':'Add accommodation'}</h2><button class="x" data-close aria-label="Close">✕</button></div>
+      <form id="stForm" autocomplete="off">
+        <label class="f" for="stName">Where are we staying?</label>
+        <input class="in" id="stName" maxlength="80" placeholder="e.g. Camps Bay guesthouse" value="${esc(s?v.name:'')}">
+        <div class="row2">
+          <div><label class="f" for="stIn">Check in</label><input class="in" type="date" id="stIn" value="${esc(v.checkIn)}"></div>
+          <div><label class="f" for="stOut">Check out</label><input class="in" type="date" id="stOut" value="${esc(v.checkOut)}"></div>
+        </div>
+        <div class="row2">
+          <div><label class="f" for="stInT">From (time)</label><input class="in" type="time" id="stInT" value="${esc(v.inTime)}"></div>
+          <div><label class="f" for="stOutT">Leave by</label><input class="in" type="time" id="stOutT" value="${esc(v.outTime)}"></div>
+        </div>
+        <label class="f" for="stAddr">Address</label>
+        <input class="in" id="stAddr" maxlength="160" value="${esc(v.address)}">
+        <label class="f" for="stRef">Booking ref</label>
+        <input class="in" id="stRef" maxlength="40" value="${esc(v.ref)}">
+        <label class="f" for="stLink">Link</label>
+        <input class="in" id="stLink" type="url" inputmode="url" maxlength="500" placeholder="https://…" value="${esc(v.link)}">
+        <label class="f">Bar colour</label>
+        <div class="chips" id="stCol"></div>
+        <label class="f" for="stNotes">Notes</label>
+        <textarea class="in" id="stNotes" maxlength="1000" placeholder="Wi-Fi password, gate code, host's number…">${esc(v.notes)}</textarea>
+        ${s && safeUrl(v.link) ? `<a class="link" href="${esc(safeUrl(v.link))}" target="_blank" rel="noopener noreferrer">🔗 Open booking</a>` : ''}
+        <div class="err" id="stErr"></div>
+        <div class="actions">${s?'<button type="button" class="danger" id="stDel">Delete</button>':''}<button type="submit" class="primary" id="stSave">${s?'Save changes':'Add accommodation'}</button></div>
+      </form>`);
+    function drawCol(){ $('#stCol').innerHTML = STAY_COLORS.map(c => `<button type="button" class="swatch" data-col="${c}" style="background:${c};width:36px;height:36px;${c===color?'outline:3px solid var(--sa-gold);outline-offset:2px':''}" aria-label="Colour"></button>`).join(''); }
+    drawCol();
+    $('#stCol').addEventListener('click', e => { const b = e.target.closest('[data-col]'); if(b){ color = b.dataset.col; drawCol(); } });
+    $('#stForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      let link = $('#stLink').value.trim(); if(link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
+      const data = { name:$('#stName').value.trim(), checkIn:$('#stIn').value, checkOut:$('#stOut').value, inTime:$('#stInT').value, outTime:$('#stOutT').value,
+        address:$('#stAddr').value.trim(), ref:$('#stRef').value.trim(), link, notes:$('#stNotes').value.trim(), color,
+        createdAt:(s&&s.createdAt)||Date.now(), updatedAt:Date.now() };
+      const err = $('#stErr');
+      if(!data.name){ err.textContent = 'Give the place a name.'; return; }
+      if(!validDate(data.checkIn) || !validDate(data.checkOut)){ err.textContent = 'Pick both check-in and check-out days.'; return; }
+      if(pd(data.checkOut) <= pd(data.checkIn)){ err.textContent = 'Check-out needs to be after check-in.'; return; }
+      if(link && !safeUrl(link)){ err.textContent = 'That link doesn’t look right.'; return; }
+      if(await write(() => S.db.saveItem('stays', s ? s.id : null, data))){ closeSheet(); toast(s ? 'Saved' : 'Accommodation added 🏨'); }
+    });
+    if(s) armDelete($('#stDel'), () => write(() => S.db.deleteItem('stays', s.id)));
+  }
+  function openAddChooser(){
+    openSheet(`<div class="shead"><h2>Add…</h2><button class="x" data-close aria-label="Close">✕</button></div>
+      <div style="display:grid;gap:10px">
+        <button type="button" class="bar flight" id="chFl"><span class="be">✈️</span><div class="bb"><div class="bm">A flight</div></div></button>
+        <button type="button" class="bar" style="background:var(--sa-green)" id="chSt"><span class="be">🏨</span><div class="bb"><div class="bm">Accommodation</div></div></button>
+      </div>`);
+    $('#chFl').addEventListener('click', () => { closeSheet(); openFlight(null); });
+    $('#chSt').addEventListener('click', () => { closeSheet(); openStay(null); });
   }
 
   function renderIdeas(main){
@@ -600,6 +810,10 @@ const API = "https://jsonblob.com/api/jsonBlob";
   function dayText(day){
     const list = actsOn(day);
     const lines = [`${fmtLong(day)}`];
+    stayEvents(day).filter(e => e.k==='out').forEach(e => lines.push(`🧳 Check out: ${e.s.name}${e.s.outTime?` by ${fmtTime(e.s.outTime)}`:''}`));
+    flightsOn(day).forEach(f => lines.push(`✈️ ${f.dep?fmtTime(f.dep)+' ':''}${route(f)}${f.flightNo?` (${f.flightNo})`:''}${f.arr?`, lands ${fmtTime(f.arr)}`:''}`));
+    stayEvents(day).filter(e => e.k==='in').forEach(e => lines.push(`🔑 Check in: ${e.s.name}${e.s.inTime?` from ${fmtTime(e.s.inTime)}`:''}${e.s.address?` — ${e.s.address}`:''}`));
+    stayEvents(day).filter(e => e.k==='night').forEach(e => lines.push(`🏨 Staying at ${e.s.name}`));
     list.forEach(a => {
       const t = a.start ? fmtTime(a.start) + (a.end ? '–' + fmtTime(a.end) : '') : 'Any time';
       const ms = members(); const sel = ms.filter(m => a.who.includes(m.id));
@@ -630,13 +844,17 @@ const API = "https://jsonblob.com/api/jsonBlob";
       catch(err){ toast('Couldn’t copy on this device'); }
       return;
     }
+    const fb = e.target.closest('[data-flight]'); if(fb){ openFlight(fb.dataset.flight); return; }
+    const sb = e.target.closest('[data-stay]'); if(sb){ openStay(sb.dataset.stay); return; }
+    if(e.target.closest('[data-addflight]')){ openFlight(null); return; }
+    if(e.target.closest('[data-addstay]')){ openStay(null); return; }
     if(e.target.closest('[data-setup]')){ openSettings(); return; }
     if(e.target.closest('[data-newtrip]')){ try{ localStorage.removeItem(LS('current')); }catch(err){} location.href = location.pathname; return; }
     const c = e.target.closest('[data-id]');
     if(c) openActivity(c.dataset.id);
   });
   $('#main').addEventListener('keydown', e => {
-    if((e.key==='Enter'||e.key===' ') && e.target.matches('.card')){ e.preventDefault(); openActivity(e.target.dataset.id); }
+    if((e.key==='Enter'||e.key===' ') && e.target.matches('.card,.bar')){ e.preventDefault(); e.target.click(); }
   });
   $('#tabs').addEventListener('click', e => {
     const b = e.target.closest('[data-tab]'); if(!b) return;
@@ -660,6 +878,7 @@ const API = "https://jsonblob.com/api/jsonBlob";
   $('#members').addEventListener('click', e => { if(e.target.closest('[data-pickme]')) askWhoIfNeeded(true); });
   $('#fab').addEventListener('click', () => {
     if(S.tab==='ideas') return openActivity(null, '');
+    if(S.tab==='travel') return openAddChooser();
     const days = tripDays();
     const d = S.sel && S.sel!=='all' ? S.sel : (days.includes(todayStr()) ? todayStr() : (days[0]||''));
     openActivity(null, d);
@@ -681,26 +900,30 @@ const API = "https://jsonblob.com/api/jsonBlob";
   const lsSet = (k,v) => { try{ localStorage.setItem(LS(k), JSON.stringify(v)); }catch(e){} };
   function hashId(){ const m = location.hash.match(/^#trip-([A-Za-z0-9_-]{6,80})$/); return m ? m[1] : null; }
   function shareLink(){ return location.origin + location.pathname + '#trip-' + BLOB; }
+  const COLS = ['acts','stays','flights'];
   function clean(st){
-    const out = {trip:null, acts:{}};
+    const out = {trip:null, acts:{}, stays:{}, flights:{}};
     if(st && typeof st==='object'){
       if(st.trip && typeof st.trip==='object') out.trip = st.trip;
-      if(st.acts && typeof st.acts==='object' && !Array.isArray(st.acts))
-        for(const [k,v] of Object.entries(st.acts)) if(v && typeof v==='object' && /^[A-Za-z0-9_-]{1,40}$/.test(k)) out.acts[k] = v;
+      for(const c of COLS) if(st[c] && typeof st[c]==='object' && !Array.isArray(st[c]))
+        for(const [k,v] of Object.entries(st[c])) if(v && typeof v==='object' && /^[A-Za-z0-9_-]{1,40}$/.test(k)) out[c][k] = v;
     }
     return out;
   }
   function applyOp(st, op){
-    const s = {trip:st.trip, acts:{...st.acts}};
+    const s = {trip:st.trip, acts:{...(st.acts||{})}, stays:{...(st.stays||{})}, flights:{...(st.flights||{})}};
+    const col = COLS.includes(op.col) ? op.col : 'acts';
     if(op.t==='trip') s.trip = op.body;
-    else if(op.t==='act') s.acts[op.id] = op.body;
-    else if(op.t==='del') delete s.acts[op.id];
+    else if(op.t==='act' || op.t==='put') s[col][op.id] = op.body;
+    else if(op.t==='del') delete s[col][op.id];
     return s;
   }
   function view(){
     let s = remote; for(const op of pending) s = applyOp(s, op);
     S.trip = s.trip; S.tripLoaded = true;
     S.acts = Object.entries(s.acts).map(([id,d]) => norm({id, data:() => d}));
+    S.stays = Object.entries(s.stays).map(([id,d]) => normStay(id,d));
+    S.flights = Object.entries(s.flights).map(([id,d]) => normFlight(id,d));
     render(); askWhoIfNeeded();
   }
   function persist(){ if(BLOB){ lsSet('remote:'+BLOB, remote); lsSet('pending:'+BLOB, pending); } }
@@ -766,7 +989,9 @@ const API = "https://jsonblob.com/api/jsonBlob";
       queue({t:'trip', body});
     },
     saveAct: (id, body) => queue({t:'act', id: id || ('a' + Date.now().toString(36) + uid()), body}),
-    deleteAct: id => queue({t:'del', id})
+    deleteAct: id => queue({t:'del', id}),
+    saveItem: (col, id, body) => queue({t:'put', col, id: id || (col[0] + Date.now().toString(36) + uid()), body}),
+    deleteItem: (col, id) => queue({t:'del', col, id})
   };
   async function boot(){
     S.db = store;
