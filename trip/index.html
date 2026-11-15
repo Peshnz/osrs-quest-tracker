@@ -79,6 +79,9 @@
   .pill .av{width:18px;height:18px;font-size:9.5px}
   .notes{font-size:13.5px;margin-top:7px;color:#3C4A52;white-space:pre-wrap;word-wrap:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   .link{display:inline-block;margin-top:6px;font-size:13px;color:var(--teal);font-weight:600;word-break:break-all}
+  .dist{margin-top:7px;font-size:13px;color:var(--teal-d);background:var(--teal-l);border-radius:8px;padding:5px 9px;line-height:1.45}
+  .dist a{color:inherit;font-weight:700}
+  .geo-note{font-size:12.5px;margin-top:6px;color:var(--muted)}
   .clash{margin-top:7px;font-size:12.5px;color:#9A4A12;background:#FFF1E3;border-radius:8px;padding:4px 8px}
   .by{font-size:11.5px;color:var(--muted);margin-top:7px}
 
@@ -224,7 +227,7 @@ const API = "https://jsonblob.com/api/jsonBlob";
       place:String(d.place||''), cat: CATS[d.cat] ? d.cat : 'activity',
       who: Array.isArray(d.who) ? d.who.filter(x => typeof x==='string') : [],
       notes:String(d.notes||''), link:String(d.link||''),
-      by: typeof d.by==='string' ? d.by : '', createdAt: Number(d.createdAt)||0
+      by: typeof d.by==='string' ? d.by : '', createdAt: Number(d.createdAt)||0, geo: cleanGeo(d.geo)
     };
   }
   function sortActs(a,b){
@@ -282,6 +285,110 @@ const API = "https://jsonblob.com/api/jsonBlob";
       const m = memberById(S.me); if(m) toast(`Hi ${m.name}! 👋`);
     });
   }
+  /* ---------- Maps & distances ----------
+     Places are found with OpenStreetMap (Nominatim) and drive times with OSRM.
+     Both are free and need no account. Results are cached on each phone. */
+  const GEO_CC = 'za';
+  function cleanGeo(g){ return (g && isFinite(g.lat) && isFinite(g.lng) && Math.abs(g.lat)<=90 && Math.abs(g.lng)<=180) ? {lat:+g.lat, lng:+g.lng, label:String(g.label||'').slice(0,160)} : null; }
+  function parseCoords(s){
+    if(!s) return null;
+    const m = s.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/) || s.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/)
+      || s.match(/[?&](?:q|query|ll|destination|center)=(-?\d{1,2}\.\d+)(?:,|%2C)\s*(-?\d{1,3}\.\d+)/i)
+      || s.match(/^\s*(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})\s*$/);
+    return m ? cleanGeo({lat:+m[1], lng:+m[2]}) : null;
+  }
+  function placeFromLink(u){
+    try{
+      const x = new URL(u);
+      const m = x.pathname.match(/\/maps\/place\/([^/]+)/);
+      if(m) return decodeURIComponent(m[1].replace(/\+/g,' '));
+      const q = x.searchParams.get('q') || x.searchParams.get('query');
+      if(q && !parseCoords(q)) return q;
+    }catch(e){}
+    return '';
+  }
+  let geoChain = Promise.resolve();
+  function nominatim(q){
+    q = String(q||'').trim(); if(q.length<3) return Promise.resolve(null);
+    const key = 'geo:' + q.toLowerCase();
+    const c = lsGet(key); if(c===false) return Promise.resolve(null); if(c) return Promise.resolve(c);
+    const run = async cc => {
+      const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1' + (cc?'&countrycodes='+cc:'') + '&q=' + encodeURIComponent(q), {headers:{'Accept':'application/json'}});
+      if(!r.ok) throw new Error('geo ' + r.status);
+      const j = await r.json();
+      return j && j[0] ? cleanGeo({lat:+j[0].lat, lng:+j[0].lon, label:String(j[0].display_name||'').split(',').slice(0,3).join(',').trim()}) : null;
+    };
+    const p = geoChain.then(async () => { let g = await run(GEO_CC); if(!g) g = await run(''); lsSet(key, g || false); return g; });
+    geoChain = p.catch(() => {}).then(() => new Promise(r => setTimeout(r, 1100)));   // be polite: 1 lookup a second
+    return p;
+  }
+  async function resolveGeo(item, kind){
+    const tries = kind==='stay' ? [item.link, item.address, item.name] : [item.link, item.place];
+    for(const t of tries){ const g = parseCoords(t); if(g) return {...g, label: g.label || (kind==='stay' ? item.name : (item.place || item.title))}; }
+    const names = kind==='stay'
+      ? [placeFromLink(item.link), item.address, item.name]
+      : [placeFromLink(item.link), item.place, item.place && item.title ? item.title + ', ' + item.place : '', item.title];
+    let n = 0;
+    for(const q of names){ if(!q || n>=3) continue; n++; const g = await nominatim(q); if(g) return g; }
+    return null;
+  }
+  const withTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(undefined), ms))]);
+  const geoSig = (item, kind) => kind==='stay' ? [item.link,item.address,item.name].join('|') : [item.link,item.place,item.title].join('|');
+  const memGeo = {}, memDrive = {};
+  function geoOf(item, kind){
+    if(item.geo) return item.geo;
+    const k = kind + ':' + geoSig(item, kind);
+    if(k in memGeo) return memGeo[k];
+    memGeo[k] = null;
+    resolveGeo(item, kind).then(g => { memGeo[k] = g; if(g) render(); }).catch(() => { delete memGeo[k]; });
+    return null;
+  }
+  function hav(a,b){ const R=6371, r=x=>x*Math.PI/180; const dLa=r(b.lat-a.lat), dLo=r(b.lng-a.lng);
+    const x = Math.sin(dLa/2)**2 + Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(x)); }
+  function drive(a,b){
+    const key = 'drv:' + [a.lat,a.lng,b.lat,b.lng].map(x => x.toFixed(4)).join(',');
+    if(key in memDrive) return memDrive[key];
+    const c = lsGet(key); if(c){ memDrive[key] = c; return c; }
+    memDrive[key] = null;
+    fetch(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`)
+      .then(r => r.json()).then(j => {
+        const r0 = j && j.routes && j.routes[0];
+        const v = r0 ? {km:r0.distance/1000, min:r0.duration/60} : {none:true};
+        memDrive[key] = v; lsSet(key, v); render();
+      }).catch(() => { memDrive[key] = {fail:true}; render(); });
+    return null;
+  }
+  const fmtKm = k => k < 10 ? k.toFixed(1) + ' km' : Math.round(k) + ' km';
+  const fmtDur = m => { m = Math.max(1, Math.round(m)); if(m<60) return m + ' min'; const hh = Math.floor(m/60), r = m%60; return hh + ' h' + (r ? ' ' + r : ''); };
+  function travelBetween(sg, g){
+    const d = drive(sg, g);
+    if(d && d.min!=null) return {txt:`${fmtDur(d.min)} drive (${fmtKm(d.km)})`, km:d.km};
+    const k = hav(sg, g);
+    return {txt: d===null ? `${fmtKm(k)} away` : `${fmtKm(k)} away in a straight line`, km:k};
+  }
+  function stayOnDay(day){ return stayFor(day) || S.stays.find(s => s.checkOut===day) || null; }
+  function distHtml(a){
+    if(!S.stays.length) return '';
+    const g = geoOf(a, 'act'); if(!g) return '';
+    const maps = `<a href="https://www.google.com/maps/search/?api=1&query=${g.lat},${g.lng}" target="_blank" rel="noopener noreferrer">Map</a>`;
+    if(a.date){
+      const s = stayOnDay(a.date); if(!s) return '';
+      const sg = geoOf(s, 'stay'); if(!sg) return '';
+      return `<div class="dist">🚗 ${esc(travelBetween(sg, g).txt)} from ${esc(s.name)} · ${maps}</div>`;
+    }
+    const rows = S.stays.map(s => { const sg = geoOf(s, 'stay'); return sg ? {s, ...travelBetween(sg, g)} : null; })
+      .filter(Boolean).sort((x,y) => x.km-y.km).slice(0,3);
+    if(!rows.length) return '';
+    return `<div class="dist">${rows.map((r,i) => `${i? '' : '🚗 '}${i?'':'<b>Closest:</b> '}${esc(r.s.name)} — ${esc(r.txt)}`).join('<br>')}<br>${maps}</div>`;
+  }
+  /* Pasting a share from the Google Maps app gives "Place name https://maps.app.goo.gl/…" — split it. */
+  function splitShare(raw){
+    raw = String(raw||'').trim();
+    const m = raw.match(/https?:\/\/\S+/i);
+    if(!m) return {link: raw && !/\s/.test(raw) ? (/^https?:\/\//i.test(raw) ? raw : 'https://' + raw) : '', text: m ? '' : (/\s/.test(raw) ? raw : '')};
+    return {link: m[0], text: raw.replace(m[0], '').replace(/\s+/g,' ').trim()};
+  }
+
   function card(a, clash){
     const c = CATS[a.cat];
     let time;
@@ -297,6 +404,7 @@ const API = "https://jsonblob.com/api/jsonBlob";
         <div class="who">${whoHtml(a.who)}</div>
         ${a.notes?`<div class="notes">${esc(a.notes)}</div>`:''}
         ${url?`<a class="link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">🔗 ${esc(new URL(url).hostname.replace(/^www\./,''))}</a>`:''}
+        ${distHtml(a)}
         ${clash&&clash.length?`<div class="clash">⚠️ Overlaps with ${esc(clash.join(', '))}</div>`:''}
         ${byLine(a)}
       </div>
@@ -402,7 +510,7 @@ const API = "https://jsonblob.com/api/jsonBlob";
     return { id, name:String(d.name||'Accommodation'), checkIn: validDate(d.checkIn) ? d.checkIn : '', checkOut: validDate(d.checkOut) ? d.checkOut : '',
       inTime: mins(d.inTime)!=null ? d.inTime : '', outTime: mins(d.outTime)!=null ? d.outTime : '', address:String(d.address||''),
       ref:String(d.ref||''), link:String(d.link||''), notes:String(d.notes||''),
-      color: STAY_COLORS.includes(d.color) ? d.color : STAY_COLORS[0], createdAt:Number(d.createdAt)||0 };
+      color: STAY_COLORS.includes(d.color) ? d.color : STAY_COLORS[0], createdAt:Number(d.createdAt)||0, geo: cleanGeo(d.geo) };
   }
   function sortFlights(a,b){ return (a.date||'9').localeCompare(b.date||'9') || (mins(a.dep)??9999)-(mins(b.dep)??9999); }
   function flightsOn(day){ return S.flights.filter(f => f.date===day).sort(sortFlights); }
@@ -547,7 +655,9 @@ const API = "https://jsonblob.com/api/jsonBlob";
         <label class="f" for="stRef">Booking ref</label>
         <input class="in" id="stRef" maxlength="40" value="${esc(v.ref)}">
         <label class="f" for="stLink">Link</label>
-        <input class="in" id="stLink" type="url" inputmode="url" maxlength="500" placeholder="https://…" value="${esc(v.link)}">
+        <input class="in" id="stLink" inputmode="url" maxlength="800" placeholder="Booking or Google Maps link" value="${esc(v.link)}">
+        <div class="hint">The address or a Google Maps link is used to work out distances to activities.</div>
+        ${s ? (() => { const g = geoOf(s,'stay'); return g ? `<div class="geo-note">📍 On the map as: ${esc(g.label || 'pinned location')}</div>` : `<div class="geo-note">📍 Couldn’t find this on the map yet — add the full address or a Google Maps link.</div>`; })() : ''}
         <label class="f">Bar colour</label>
         <div class="chips" id="stCol"></div>
         <label class="f" for="stNotes">Notes</label>
@@ -561,7 +671,8 @@ const API = "https://jsonblob.com/api/jsonBlob";
     $('#stCol').addEventListener('click', e => { const b = e.target.closest('[data-col]'); if(b){ color = b.dataset.col; drawCol(); } });
     $('#stForm').addEventListener('submit', async e => {
       e.preventDefault();
-      let link = $('#stLink').value.trim(); if(link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
+      const sh = splitShare($('#stLink').value); const link = sh.link;
+      if(sh.text && !$('#stAddr').value.trim()) $('#stAddr').value = sh.text.slice(0,160);
       const data = { name:$('#stName').value.trim(), checkIn:$('#stIn').value, checkOut:$('#stOut').value, inTime:$('#stInT').value, outTime:$('#stOutT').value,
         address:$('#stAddr').value.trim(), ref:$('#stRef').value.trim(), link, notes:$('#stNotes').value.trim(), color,
         createdAt:(s&&s.createdAt)||Date.now(), updatedAt:Date.now() };
@@ -570,6 +681,9 @@ const API = "https://jsonblob.com/api/jsonBlob";
       if(!validDate(data.checkIn) || !validDate(data.checkOut)){ err.textContent = 'Pick both check-in and check-out days.'; return; }
       if(pd(data.checkOut) <= pd(data.checkIn)){ err.textContent = 'Check-out needs to be after check-in.'; return; }
       if(link && !safeUrl(link)){ err.textContent = 'That link doesn’t look right.'; return; }
+      $('#stSave').disabled = true;
+      if(s && s.geo && geoSig(s,'stay')===geoSig(data,'stay')) data.geo = s.geo;
+      else { $('#stSave').textContent = 'Finding it on the map…'; try{ data.geo = (await withTimeout(resolveGeo(data,'stay'), 9000)) || null; }catch(e){ data.geo = null; } }
       if(await write(() => S.db.saveItem('stays', s ? s.id : null, data))){ closeSheet(); toast(s ? 'Saved' : 'Accommodation added 🏨'); }
     });
     if(s) armDelete($('#stDel'), () => write(() => S.db.deleteItem('stays', s.id)));
@@ -646,7 +760,9 @@ const API = "https://jsonblob.com/api/jsonBlob";
         <label class="f" for="fNotes">Notes</label>
         <textarea class="in" id="fNotes" maxlength="2000" placeholder="Booking refs, what to bring, cost…" ${dis}>${esc(v.notes)}</textarea>
         <label class="f" for="fLink">Link</label>
-        <input class="in" id="fLink" type="url" inputmode="url" maxlength="500" placeholder="https://…" value="${esc(v.link)}" ${dis}>
+        <input class="in" id="fLink" inputmode="url" maxlength="800" placeholder="Paste a Google Maps or website link" value="${esc(v.link)}" ${dis}>
+        <div class="hint">Share a place from Google Maps and paste it here — we’ll work out how far it is from where you’re staying.</div>
+        ${a ? (() => { const g = geoOf(a,'act'); return g ? `<div class="geo-note">📍 On the map as: ${esc(g.label || 'pinned location')}</div>` : (a.place||a.link ? `<div class="geo-note">📍 Couldn’t find this on the map yet. A Google Maps link or a clearer place name helps.</div>` : ''); })() : ''}
         <div class="err" id="fErr"></div>
         ${ro ? '' : `<div class="actions">${a?'<button type="button" class="danger" id="fDel">Delete</button>':''}<button type="submit" class="primary" id="fSave">${a?'Save changes':'Add to plan'}</button></div>`}
       </form>`);
@@ -682,11 +798,13 @@ const API = "https://jsonblob.com/api/jsonBlob";
     let busy = false;
     $('#actForm').addEventListener('submit', async e => {
       e.preventDefault(); if(busy) return;
-      const title = $('#fTitle').value.trim();
+      let title = $('#fTitle').value.trim();
       const start = $('#fStart').value, end = $('#fEnd').value;
-      let link = $('#fLink').value.trim();
-      if(link && !/^https?:\/\//i.test(link)) link = 'https://' + link;
+      const sh = splitShare($('#fLink').value);
+      let link = sh.link;
+      if(sh.text && !$('#fPlace').value.trim()) $('#fPlace').value = sh.text.slice(0,160);
       const err = $('#fErr');
+      if(!title && sh.text){ title = sh.text.slice(0,120); $('#fTitle').value = title; }
       if(!title){ err.textContent = 'Give it a name first.'; $('#fTitle').focus(); return; }
       if(end && !start){ err.textContent = 'Add a start time too, or clear the end time.'; return; }
       if(start && end && mins(end) <= mins(start)){ err.textContent = 'The end time needs to be after the start time.'; return; }
@@ -695,7 +813,13 @@ const API = "https://jsonblob.com/api/jsonBlob";
         title, cat, date:$('#fDate').value, start, end,
         place:$('#fPlace').value.trim(), who:[...who], notes:$('#fNotes').value.trim(), link
       };
-      busy = true; $('#fSave').disabled = true; $('#fSave').textContent = 'Saving…';
+      busy = true; $('#fSave').disabled = true;
+      if(a && a.geo && geoSig(a,'act')===geoSig(data,'act')) data.geo = a.geo;
+      else if(data.link || data.place){
+        $('#fSave').textContent = 'Finding it on the map…';
+        try{ data.geo = (await withTimeout(resolveGeo(data,'act'), 9000)) || null; }catch(e){ data.geo = null; }
+      }
+      $('#fSave').textContent = 'Saving…';
       const ok = await saveActivity(a ? a.id : null, data);
       busy = false;
       if(ok){
