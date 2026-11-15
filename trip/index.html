@@ -170,9 +170,10 @@
 <div id="toast" class="toast" role="status"></div>
 
 <script type="module">
-/* Shared storage: a free JSONBlob (jsonblob.com, no account needed).
-   The plan's id travels in the link, e.g. .../trip/#trip-1234abcd */
-const API = "https://jsonblob.com/api/jsonBlob";
+/* Shared storage: public Nostr relays (free, no accounts). Everything is
+   encrypted with a key that only exists in the trip link (#trip-…), so only
+   people with the link can read or change the plan. */
+const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net", "wss://offchain.pub"];
 
 (function(){
   const CATS = {
@@ -434,6 +435,7 @@ const API = "https://jsonblob.com/api/jsonBlob";
     let msg = '';
     if(S.loadErr) msg = "Couldn't load the plan. Try opening the page again a bit later.";
     else if(S.offline) msg = S.tripLoaded ? "Can't reach the shared plan right now, so this may be out of date. It'll catch up once you're connected." : "Can't reach the shared plan yet. Check your connection — it'll load as soon as it connects.";
+    if(!msg && S.offline && typeof outbox!=='undefined' && outbox.length) msg = `${outbox.length} change${outbox.length>1?'s':''} saved on this phone — they\u2019ll send when you have signal.`;
     b.textContent = msg; b.classList.toggle('hidden', !msg);
   }
   function msgBox(big,title,text,btn){
@@ -446,6 +448,8 @@ const API = "https://jsonblob.com/api/jsonBlob";
     const stripEl = $('#strip'); const keepScroll = stripEl ? stripEl.scrollLeft : null;
     $('#fab').classList.toggle('hidden', !(canEdit() && S.trip));
     if(S.booting){ main.innerHTML = `<div class="loading">Loading the plan…</div>`; return; }
+    if(S.libFail){ main.innerHTML = msgBox('📡','Couldn\u2019t start the planner','Check your connection, then reload the page.'); return; }
+    if(!S.trip && BLOB && !S.confirmed){ main.innerHTML = S.offline ? msgBox('📡','Can\u2019t reach the plan yet','Check your signal. The trip will appear as soon as the phone connects.') : `<div class="loading">Loading the plan…</div>`; return; }
     if(S.missing){ main.innerHTML = msgBox('🤷','Can\u2019t find this trip','This link\u2019s plan no longer exists (plans are removed after 75 days without use). You can start a new one.','<button class="primary" data-newtrip>Start a new trip</button>'); return; }
     if(!S.db){ main.innerHTML = msgBox('📡','Couldn’t start the planner','Check your connection and reload the page.'); return; }
     if(!S.tripLoaded){ main.innerHTML = `<div class="loading">Loading the plan…</div>`; return; }
@@ -926,7 +930,7 @@ const API = "https://jsonblob.com/api/jsonBlob";
   function writeFailed(err){
     console.error(err);
     const code = err && err.code;
-    if(code==='noid' || (!BLOB)) toast('Couldn\u2019t create the shared plan. Check your signal and try again.', 5000);
+    if(!BLOB) toast('Couldn\u2019t create the shared plan. Check your signal and try again.', 5000);
     else toast('Couldn’t save that change. Please try again.', 4000);
   }
 
@@ -1014,124 +1018,162 @@ const API = "https://jsonblob.com/api/jsonBlob";
     S.confirmed = true; S.offline = false; clearTimeout(loadTimer); renderBanner();
   }
   let loadTimer;
-  /* ---------- Shared storage (JSONBlob) ----------
-     The whole plan is one small JSON file: {trip, acts:{id:activity}}.
-     Changes are queued, applied on top of the latest copy and saved, so two
-     phones adding things at once don't wipe each other's work. */
-  let BLOB = null, remote = {trip:null, acts:{}}, pending = [], flushing = false, gen = 0;
+  /* ---------- Shared storage (Nostr relays) ----------
+     Each trip item (settings, an activity, a stay, a flight) is its own small
+     encrypted, signed message, saved to several relays at once. Two people
+     editing different things can never overwrite each other, and changes made
+     with no signal wait on the phone until it reconnects. */
+  const KIND = 30078;
+  let BLOB = null, K = null, NT = null, items = {}, outbox = [];
+  const conns = {};
   const LS = k => 'tripPlan:' + k;
   const lsGet = k => { try{ return JSON.parse(localStorage.getItem(LS(k))); }catch(e){ return null; } };
   const lsSet = (k,v) => { try{ localStorage.setItem(LS(k), JSON.stringify(v)); }catch(e){} };
   function hashId(){ const m = location.hash.match(/^#trip-([A-Za-z0-9_-]{6,80})$/); return m ? m[1] : null; }
   function shareLink(){ return location.origin + location.pathname + '#trip-' + BLOB; }
-  const COLS = ['acts','stays','flights'];
   function clean(st){
     const out = {trip:null, acts:{}, stays:{}, flights:{}};
     if(st && typeof st==='object'){
       if(st.trip && typeof st.trip==='object') out.trip = st.trip;
-      for(const c of COLS) if(st[c] && typeof st[c]==='object' && !Array.isArray(st[c]))
+      for(const c of ['acts','stays','flights']) if(st[c] && typeof st[c]==='object' && !Array.isArray(st[c]))
         for(const [k,v] of Object.entries(st[c])) if(v && typeof v==='object' && /^[A-Za-z0-9_-]{1,40}$/.test(k)) out[c][k] = v;
     }
     return out;
   }
-  function applyOp(st, op){
-    const s = {trip:st.trip, acts:{...(st.acts||{})}, stays:{...(st.stays||{})}, flights:{...(st.flights||{})}};
-    const col = COLS.includes(op.col) ? op.col : 'acts';
-    if(op.t==='trip') s.trip = op.body;
-    else if(op.t==='act' || op.t==='put') s[col][op.id] = op.body;
-    else if(op.t==='del') delete s[col][op.id];
-    return s;
+  const b64e = bytes => { let s = ''; for(let i=0;i<bytes.length;i++) s += String.fromCharCode(bytes[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
+  const b64d = str => { const s = str.replace(/-/g,'+').replace(/_/g,'/'); const bin = atob(s + '='.repeat((4 - s.length%4)%4)); const out = new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i); return out; };
+  const hex = b => Array.from(b, x => x.toString(16).padStart(2,'0')).join('');
+  async function sha(str){ return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))); }
+  async function loadLib(){
+    for(const u of ['https://esm.sh/nostr-tools@2.7.0', 'https://cdn.jsdelivr.net/npm/nostr-tools@2.7.0/+esm']){
+      try{ const m = await import(u); if(m && m.finalizeEvent && m.getPublicKey) return m; }catch(e){ console.warn('lib', u, e); }
+    }
+    throw new Error('lib');
   }
+  async function deriveKeys(secret){
+    const sk = await sha('trip-sk:' + secret);
+    const aes = await crypto.subtle.importKey('raw', await sha('trip-aes:' + secret), 'AES-GCM', false, ['encrypt','decrypt']);
+    const tag = hex(await sha('trip-tag:' + secret)).slice(0, 24);
+    return {sk, pk: NT.getPublicKey(sk), tag, aes};
+  }
+  async function enc(obj){
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv}, K.aes, new TextEncoder().encode(JSON.stringify(obj))));
+    const all = new Uint8Array(12 + ct.length); all.set(iv); all.set(ct, 12);
+    return b64e(all);
+  }
+  async function dec(str){
+    const all = b64d(str);
+    const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv: all.slice(0,12)}, K.aes, all.slice(12));
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+  const newer = (cur, ts, id) => !cur || ts > cur.ts || (ts===cur.ts && id < cur.id);
+  async function ingest(ev){
+    if(!ev || ev.kind!==KIND || ev.pubkey!==K.pk || !Array.isArray(ev.tags)) return false;
+    const d = (ev.tags.find(t => t[0]==='d') || [])[1] || '';
+    if(!d.startsWith(K.tag + ':') || !newer(items[d], ev.created_at, ev.id)) return false;
+    try{ if(NT.verifyEvent && !NT.verifyEvent(ev)) return false; }catch(e){ return false; }
+    let p; try{ p = await dec(ev.content); }catch(e){ return false; }
+    if(!p || !['trip','acts','stays','flights'].includes(p.col) || typeof p.id!=='string') return false;
+    if(!newer(items[d], ev.created_at, ev.id)) return false;
+    items[d] = {ts:ev.created_at, id:ev.id, col:p.col, iid:p.id, del:!!p.del, body: p.del ? null : (p.body || null)};
+    return true;
+  }
+  let viewT = null, cacheT = null;
+  function scheduleView(){ if(!viewT) viewT = setTimeout(() => { viewT = null; view(); }, 60); }
+  function saveCacheSoon(){ clearTimeout(cacheT); cacheT = setTimeout(() => lsSet('items:' + BLOB, items), 400); }
   function view(){
-    let s = remote; for(const op of pending) s = applyOp(s, op);
-    S.trip = s.trip; S.tripLoaded = true;
+    const st = {trip:null, acts:{}, stays:{}, flights:{}};
+    for(const it of Object.values(items)){
+      if(it.del || !it.body) continue;
+      if(it.col==='trip') st.trip = it.body; else st[it.col][it.iid] = it.body;
+    }
+    const s = clean(st);
+    S.trip = s.trip; if(S.trip || S.confirmed) S.tripLoaded = true;
     S.acts = Object.entries(s.acts).map(([id,d]) => norm({id, data:() => d}));
     S.stays = Object.entries(s.stays).map(([id,d]) => normStay(id,d));
     S.flights = Object.entries(s.flights).map(([id,d]) => normFlight(id,d));
     render(); askWhoIfNeeded();
   }
-  function persist(){ if(BLOB){ lsSet('remote:'+BLOB, remote); lsSet('pending:'+BLOB, pending); } }
-  async function api(method, id, body){
-    const res = await fetch(id ? API + '/' + id : API, {
-      method, cache:'no-store',
-      headers:{'Content-Type':'application/json','Accept':'application/json'},
-      body: body ? JSON.stringify(body) : undefined
-    });
-    if(res.status===404){ const e = new Error('missing'); e.code = 'missing'; throw e; }
-    if(!res.ok){ const e = new Error('http ' + res.status); e.code = 'http'; throw e; }
-    return res;
+  async function put(col, id, body, del){
+    const d = `${K.tag}:${col}:${id}`;
+    const cur = items[d];
+    let ts = Math.floor(Date.now()/1000); if(cur && cur.ts >= ts) ts = cur.ts + 1;
+    const content = await enc({col, id, body: del ? null : body, del: !!del});
+    const ev = NT.finalizeEvent({kind:KIND, created_at:ts, tags:[['d', d], ['t', K.tag]], content}, K.sk);
+    items[d] = {ts, id:ev.id, col, iid:id, del:!!del, body: del ? null : body};
+    lsSet('items:' + BLOB, items);
+    outbox = outbox.filter(e => ((e.tags.find(t => t[0]==='d')||[])[1]) !== d);
+    outbox.push(ev); lsSet('outbox:' + BLOB, outbox);
+    scheduleView(); sendAll(ev); renderBanner();
   }
-  async function fetchRemote(){
-    if(!BLOB || flushing) return;
-    const g = gen;
-    try{
-      const st = clean(await (await api('GET', BLOB)).json());
-      if(g!==gen || flushing) return;
-      remote = st; persist(); markConfirmed(); view();
-    }catch(e){
-      if(e.code==='missing'){ S.missing = true; S.tripLoaded = true; clearTimeout(loadTimer); render(); }
-      else { S.offline = true; renderBanner(); }
-    }
-  }
-  async function flush(){
-    if(flushing || !BLOB || !pending.length) return;
-    flushing = true;
-    try{
-      while(pending.length){
-        const n = pending.length;
-        const latest = clean(await (await api('GET', BLOB)).json());
-        let next = latest; for(const op of pending.slice(0,n)) next = applyOp(next, op);
-        await api('PUT', BLOB, next);
-        remote = next; pending = pending.slice(n); gen++; persist();
+  const anyOpen = () => Object.values(conns).some(c => c.open);
+  function sendAll(ev){ for(const c of Object.values(conns)) if(c.open){ try{ c.ws.send(JSON.stringify(['EVENT', ev])); }catch(e){} } }
+  function connect(url){
+    const prev = conns[url];
+    let ws; try{ ws = new WebSocket(url); }catch(e){ return; }
+    const c = {url, ws, open:false, retry: prev ? prev.retry : 0};
+    conns[url] = c;
+    ws.onopen = () => {
+      c.open = true; c.retry = 0;
+      ws.send(JSON.stringify(['REQ', 'trip', {kinds:[KIND], authors:[K.pk], '#t':[K.tag], limit:3000}]));
+      outbox.forEach(ev => ws.send(JSON.stringify(['EVENT', ev])));
+      if(S.offline){ S.offline = false; renderBanner(); }
+    };
+    ws.onmessage = async m => {
+      let msg; try{ msg = JSON.parse(m.data); }catch(e){ return; }
+      if(msg[0]==='EVENT' && msg[1]==='trip'){ if(await ingest(msg[2])){ saveCacheSoon(); scheduleView(); } }
+      else if(msg[0]==='EOSE'){ if(!S.confirmed){ S.tripLoaded = true; markConfirmed(); view(); } }
+      else if(msg[0]==='OK' && (msg[2]===true || /duplicate|replaced|newer/i.test(msg[3]||''))){
+        const n = outbox.length; outbox = outbox.filter(e => e.id!==msg[1]);
+        if(outbox.length!==n){ lsSet('outbox:' + BLOB, outbox); renderBanner(); }
       }
-      markConfirmed();
-    }catch(e){
-      if(e.code==='missing'){ S.missing = true; }
-      S.offline = true; renderBanner();
-    }
-    flushing = false; view();
+    };
+    ws.onerror = () => {};
+    ws.onclose = () => {
+      c.open = false;
+      if(conns[url]!==c) return;
+      if(!anyOpen()) setTimeout(() => { if(!anyOpen() && BLOB){ S.offline = true; renderBanner(); } }, 4000);
+      c.retry = Math.min(c.retry + 1, 6);
+      setTimeout(() => { if(conns[url]===c && !document.hidden) connect(url); }, 1000 * Math.pow(2, c.retry));
+    };
   }
-  function queue(op){ pending.push(op); persist(); view(); flush(); }
-  async function createBlob(trip){
-    const res = await api('POST', null, {trip, acts:{}});
-    const loc = res.headers.get('Location') || res.headers.get('location') || '';
-    const id = res.headers.get('X-jsonblob') || loc.split('/').pop();
-    if(!id || !/^[A-Za-z0-9_-]{6,80}$/.test(id)) throw Object.assign(new Error('no id'), {code:'noid'});
-    useBlob(id);
-    remote = {trip, acts:{}}; persist(); markConfirmed(); view();
-  }
-  function useBlob(id){
+  function reconnect(){ if(!K) return; RELAYS.forEach(u => { const c = conns[u]; if(!c || c.ws.readyState > 1) connect(u); }); }
+  async function useBlob(id){
     BLOB = id;
     try{ localStorage.setItem(LS('current'), id); }catch(e){}
     if(hashId()!==id) history.replaceState(null, '', '#trip-' + id);
-    remote = clean(lsGet('remote:'+id)); pending = Array.isArray(lsGet('pending:'+id)) ? lsGet('pending:'+id) : [];
-    try{ S.me = localStorage.getItem('tripMe:'+id) || null; }catch(e){ S.me = null; }
+    K = await deriveKeys(id);
+    const cached = lsGet('items:' + id); items = (cached && typeof cached==='object') ? cached : {};
+    const ob = lsGet('outbox:' + id); outbox = Array.isArray(ob) ? ob : [];
+    try{ S.me = localStorage.getItem('tripMe:' + id) || null; }catch(e){ S.me = null; }
+    if(Object.keys(items).length){ S.tripLoaded = true; view(); } else render();
+    loadTimer = setTimeout(() => { if(!S.confirmed){ S.offline = true; render(); } }, 10000);
+    RELAYS.forEach(connect);
   }
+  const newSecret = () => b64e(crypto.getRandomValues(new Uint8Array(24)));
   const store = {
     saveTrip: async body => {
-      if(!BLOB) return createBlob(body);
-      queue({t:'trip', body});
+      if(!BLOB){ await useBlob(newSecret()); S.confirmed = true; clearTimeout(loadTimer); }
+      return put('trip', 'main', body);
     },
-    saveAct: (id, body) => queue({t:'act', id: id || ('a' + Date.now().toString(36) + uid()), body}),
-    deleteAct: id => queue({t:'del', id}),
-    saveItem: (col, id, body) => queue({t:'put', col, id: id || (col[0] + Date.now().toString(36) + uid()), body}),
-    deleteItem: (col, id) => queue({t:'del', col, id})
+    saveAct: (id, body) => put('acts', id || ('a' + Date.now().toString(36) + uid()), body),
+    deleteAct: id => put('acts', id, null, true),
+    saveItem: (col, id, body) => put(col, id || (col[0] + Date.now().toString(36) + uid()), body),
+    deleteItem: (col, id) => put(col, id, null, true)
   };
   async function boot(){
     S.db = store;
     let id = hashId();
     if(!id){ try{ id = localStorage.getItem(LS('current')); }catch(e){} }
+    try{ NT = await loadLib(); }catch(e){ S.booting = false; S.libFail = true; render(); return; }
     S.booting = false;
     if(!id){ S.tripLoaded = true; S.confirmed = true; render(); return; }
-    useBlob(id);
-    if(remote.trip) view(); else render();
-    loadTimer = setTimeout(() => { if(!S.confirmed){ S.offline = true; renderBanner(); } }, 10000);
-    await flush(); await fetchRemote();
-    S.tripLoaded = true; render();
+    await useBlob(id);
   }
-  setInterval(() => { if(!document.hidden && BLOB){ pending.length ? flush() : fetchRemote(); } }, 15000);
-  document.addEventListener('visibilitychange', () => { if(!document.hidden && BLOB){ flush().then(fetchRemote); } });
-  window.addEventListener('online', () => { if(BLOB){ flush().then(fetchRemote); } });
+  setInterval(() => { if(BLOB && outbox.length && !document.hidden) outbox.forEach(sendAll); }, 30000);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) reconnect(); });
+  window.addEventListener('online', reconnect);
   window.addEventListener('hashchange', () => { const id = hashId(); if(id && id!==BLOB) location.reload(); });
 
   render();
