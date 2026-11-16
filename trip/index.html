@@ -123,6 +123,14 @@
   .tcard .tn{font-weight:700;word-wrap:break-word}
   .tl-add{display:block;width:100%;border:1.5px dashed #CFE0DC;background:transparent;border-radius:10px;padding:5px;color:var(--teal);font-weight:700;font-size:13px}
   .tl-free{font-size:12px;color:var(--muted);text-align:center;padding:8px 2px}
+  .sug{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--sa-gold);border-radius:12px;padding:9px 10px 9px 12px;margin-bottom:7px;cursor:pointer}
+  .sug .sb{flex:1;min-width:0}
+  .sug .tn{font-weight:700;font-size:14.5px;word-wrap:break-word}
+  .sug .sd{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .sadd{flex:none;border:0;background:var(--teal);color:#fff;border-radius:10px;padding:8px 11px;font-weight:700;font-size:13px}
+  .sec small{font:500 13px "DM Sans",sans-serif;color:var(--muted)}
+  .idea-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px}
+  .idea-grid .tcard{margin:0}
   .addline{display:block;width:100%;margin-top:4px;border:1.5px dashed #CFE0DC;background:transparent;border-radius:12px;padding:10px;color:var(--teal);font-weight:600}
   .section-note{color:var(--muted);font-size:13.5px;margin:6px 2px 12px}
   h3.sec{font-family:Fraunces,Georgia,serif;font-size:17px;font-weight:600;margin:22px 2px 10px}
@@ -496,12 +504,35 @@ const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net
     if(list.length) h += list.map(a => card(a, cl.get(a.id))).join('');
     else h += `<div class="empty${compact?' slim':''}">${compact?'Free day — nothing planned yet':'Nothing planned yet — time for a braai? 🔥'}</div>`;
     if(canEdit() && !compact) h += `<button class="addline" data-add="${day}">＋ Add to ${esc(fmtShort(day))}</button>`;
+    if(!compact) h += suggestHtml(day);
     return h + `</section>`;
   }
 
   /* Whole trip: one column per day; stays and flights are bars spanning the
      columns (a stay runs from the middle of check-in day to the middle of
      check-out day, like a hotel night), activities stack under each day. */
+  /* Ideas without a day, nearest to that night's accommodation first. */
+  function suggestHtml(day){
+    const ideas = S.acts.filter(a => !a.date);
+    if(!ideas.length) return '';
+    const s = stayOnDay(day); const sg = s ? geoOf(s,'stay') : null;
+    const rows = ideas.map(a => { const g = geoOf(a,'act'); return {a, tr: (sg && g) ? travelBetween(sg, g) : null}; })
+      .sort((x,y) => (x.tr ? x.tr.km : 1e9) - (y.tr ? y.tr.km : 1e9) || x.a.createdAt - y.a.createdAt);
+    const shown = rows.slice(0, 6);
+    return `<h3 class="sec">💡 Ideas for this day${sg ? ` <small>· nearest to ${esc(s.name)} first</small>` : ''}</h3>` +
+      shown.map(r => `<div class="sug" role="button" tabindex="0" data-id="${esc(r.a.id)}"><div class="sb">
+        <div class="tn">${CATS[r.a.cat].emoji} ${esc(r.a.title)}</div>
+        ${r.tr ? `<div class="sd">🚗 ${esc(r.tr.txt)}</div>` : (r.a.place ? `<div class="sd">📍 ${esc(r.a.place)}</div>` : '')}</div>
+        ${canEdit() ? `<button class="sadd" data-schedule="${esc(r.a.id)}" data-on="${day}">＋ Add</button>` : ''}</div>`).join('') +
+      (rows.length > shown.length ? `<p class="section-note">${rows.length - shown.length} more in the 💡 Ideas tab.</p>` : '');
+  }
+  function nearestText(a){
+    const g = geoOf(a,'act'); if(!g) return '';
+    let best = null;
+    S.stays.forEach(s => { const sg = geoOf(s,'stay'); if(sg){ const tr = travelBetween(sg, g); if(!best || tr.km < best.km) best = {...tr, s}; } });
+    return best ? `${best.txt} from ${best.s.name}` : '';
+  }
+
   function renderTimeline(days){
     const N = days.length, W = 72;                 // each day = 2 half-columns of W px
     const idx = d => days.indexOf(d);
@@ -548,6 +579,12 @@ const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net
     h += `</div></div>`;
     if(!spans.length && !fLanes) h += `<p class="section-note">Add accommodation and flights in the 🧳 Travel tab and they’ll show as bars across the days.</p>`;
     else h += `<p class="section-note">Swipe sideways to see the whole trip. Tap a day to open it.</p>`;
+    const ideas = S.acts.filter(a => !a.date).sort((x,y) => x.createdAt - y.createdAt);
+    if(ideas.length){
+      h += `<h3 class="sec">💡 Ideas not on a day yet <small>· ${ideas.length}</small></h3><div class="idea-grid">` +
+        ideas.map(a => { const n = nearestText(a); return `<div class="tcard" role="button" tabindex="0" data-id="${esc(a.id)}" style="--c:var(--sa-gold)">
+          <div class="tn">${CATS[a.cat].emoji} ${esc(a.title)}</div>${n ? `<div class="tt" style="margin-top:3px">🚗 ${esc(n)}</div>` : ''}</div>`; }).join('') + `</div>`;
+    }
     return h;
   }
 
@@ -1043,6 +1080,16 @@ const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net
   /* ---------- Events ---------- */
   $('#main').addEventListener('click', async e => {
     if(e.target.closest('a')) return;
+    const sc = e.target.closest('[data-schedule]');
+    if(sc){
+      const a = S.acts.find(x => x.id===sc.dataset.schedule); const on = sc.dataset.on;
+      if(a && validDate(on)){
+        sc.disabled = true;
+        const data = {title:a.title, cat:a.cat, date:on, start:a.start, end:a.end, place:a.place, who:[...a.who], notes:a.notes, link:a.link, geo:a.geo || null};
+        if(await saveActivity(a.id, data)) toast(`Added to ${fmtShort(on)} — tap it to set a time`);
+      }
+      return;
+    }
     const day = e.target.closest('[data-day]');
     if(day){ S.sel = day.dataset.day; saveSel(); render(); const on = $('#strip .dchip.on'); if(on) on.scrollIntoView({inline:'nearest',block:'nearest',behavior:'smooth'}); window.scrollTo({top:0,behavior:'smooth'}); return; }
     const add = e.target.closest('[data-add]');
@@ -1063,7 +1110,7 @@ const RELAYS = ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.primal.net
     if(c) openActivity(c.dataset.id);
   });
   $('#main').addEventListener('keydown', e => {
-    if((e.key==='Enter'||e.key===' ') && e.target.matches('.card,.bar,.tl-bar,.tcard')){ e.preventDefault(); e.target.click(); }
+    if((e.key==='Enter'||e.key===' ') && e.target.matches('.card,.bar,.tl-bar,.tcard,.sug')){ e.preventDefault(); e.target.click(); }
   });
   $('#tabs').addEventListener('click', e => {
     const b = e.target.closest('[data-tab]'); if(!b) return;
