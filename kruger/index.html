@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kruger Tick List</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2f3b1f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kruger">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Saira+Stencil+One&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: friendly field-guide tick sheet, useful from a game-drive vehicle
+   IDEA: a SANParks sightings board crossed with a pocket field guide
+   PICTURE: every animal drawn male beside female on a sky-and-soil strip
+   COLOUR and TYPE: bushveld olive band, white sheet, sunset ochre for "seen"; Barlow Condensed + Barlow
+   LAYOUT: modest header with progress, sticky filter row, responsive card grid */
+:root{color-scheme:light dark;
+--bg:light-dark(#ffffff,#11140d);--ink:light-dark(#1c1f16,#ece9df);--mut:light-dark(#5b604f,#a9a796);
+--band:light-dark(#2c3a1d,#1a2211);--bandInk:#f4f1e6;--line:light-dark(#e3e1d8,#2a3020);
+--card:light-dark(#ffffff,#181d12);--acc:#e0862a;--accInk:#1b1206;
+--sky:light-dark(#e3edf0,#26323a);--sky2:light-dark(#f3eedf,#3a3a2c);--soil:light-dark(#d8c49a,#4a3f2a);
+--chip:light-dark(#f1f0ea,#232a19)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Barlow,system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3,.big{font-family:"Barlow Condensed",Barlow,sans-serif;font-weight:700;line-height:1.05;margin:0}
+header{background:var(--band);color:var(--bandInk);padding:22px max(4vw,16px) 18px}
+.hwrap{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px 28px;align-items:end}
+h1{font-size:clamp(32px,6vw,48px);text-wrap:balance}
+.sub{margin:6px 0 0;color:#cfd3bf;font-size:15px}
+.prog{text-align:right}.big{font-size:clamp(34px,6vw,48px)}.big small{font-size:.5em;color:#cfd3bf;font-weight:600}
+.bar{height:8px;background:#ffffff22;border-radius:9px;overflow:hidden;margin-top:6px;width:min(260px,70vw);margin-left:auto}
+.bar i{display:block;height:100%;background:var(--acc);width:0;transition:width .4s}
+.five{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+.five span{font-size:13px;padding:4px 10px;border-radius:20px;border:1px solid #ffffff40;color:#dfe2d2}
+.five span.on{background:var(--acc);border-color:var(--acc);color:var(--accInk);font-weight:600}
+.tools{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:10px max(4vw,16px)}
+.twrap{max-width:1240px;margin:0 auto;display:grid;gap:8px}
+.row1{display:flex;gap:8px;flex-wrap:wrap}
+input[type=search]{flex:1 1 200px;font:16px Barlow,sans-serif;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);min-height:44px}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{font:600 14px Barlow,sans-serif;border:0;background:var(--card);color:var(--mut);padding:0 12px;min-height:44px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+.rare{font:600 14px Barlow,sans-serif;min-height:44px;padding:0 12px;border-radius:10px;border:1px dashed var(--line);background:var(--card);color:var(--mut);cursor:pointer}.rare[aria-pressed=true]{border-style:solid;color:var(--ink)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chips button{flex:none;font:600 14px Barlow,sans-serif;border:1px solid var(--line);background:var(--chip);color:var(--ink);border-radius:22px;padding:0 14px;min-height:38px;cursor:pointer;white-space:nowrap}
+.chips button b{font-weight:500;color:var(--mut);margin-left:4px}
+.chips button[aria-pressed=true]{background:var(--band);color:var(--bandInk);border-color:var(--band)}
+.chips button[aria-pressed=true] b{color:#cfd3bf}
+button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+main{max-width:1240px;margin:0 auto;padding:18px max(4vw,16px) 60px}
+.note{color:var(--mut);font-size:14px;margin:0 0 14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.card[hidden]{display:none}
+.card.seen{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.pics{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+figure{margin:0;position:relative;background:linear-gradient(var(--sky),var(--sky2) 88%,var(--soil) 88%)}
+figure svg{display:block;width:100%;height:auto;aspect-ratio:200/130}
+figure img.ph{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.pbtn{position:absolute;right:6px;bottom:6px;display:flex;gap:4px}.pbtn button{font:600 12px Barlow,sans-serif;min-height:30px;padding:0 9px;border-radius:15px;border:0;background:color-mix(in srgb,var(--card) 88%,transparent);color:var(--ink);cursor:pointer}
+figure .busy{position:absolute;inset:0;display:grid;place-items:center;background:#0006;color:#fff;font-weight:600;font-size:13px}
+figcaption{z-index:1;position:absolute;left:8px;top:6px;font:600 12px Barlow,sans-serif;color:var(--mut);background:color-mix(in srgb,var(--card) 80%,transparent);padding:1px 7px;border-radius:10px}
+.txt{padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px;flex:1}
+.top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+h3{font-size:24px}
+.sci{margin:2px 0 0;font-style:italic;color:var(--mut);font-size:14px}
+.txt p{margin:0;font-size:15px}
+.txt .k{font-weight:600}
+.links{display:flex;flex-wrap:wrap;gap:6px 16px}.links a{color:var(--acc);font-weight:600;text-decoration:underline;text-underline-offset:3px;min-height:32px;display:inline-flex;align-items:center}
+.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:auto;padding-top:6px}
+.tags span{font-size:12px;padding:2px 8px;border-radius:10px;background:var(--chip);color:var(--mut)}
+.tick{flex:none;font:700 15px Barlow,sans-serif;min-height:44px;min-width:92px;padding:0 12px;border-radius:12px;border:2px solid var(--ink);background:transparent;color:var(--ink);cursor:pointer}
+.tick[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:var(--accInk)}
+.when{font-size:13px;color:var(--acc);font-weight:600}
+.empty{padding:40px 0;text-align:center;color:var(--mut)}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:12px;display:flex;gap:14px;align-items:center;font-size:15px;z-index:9}
+.toast[hidden]{display:none}.toast button{font:700 15px Barlow,sans-serif;background:none;border:0;color:var(--acc);min-height:36px;cursor:pointer}
+footer{color:var(--mut);font-size:13px;text-align:center;padding:0 16px 30px}
+@media(max-width:600px){.hwrap{grid-template-columns:1fr}.prog{text-align:left}.bar{margin-left:0}h3{font-size:22px}}
+@media(prefers-reduced-motion:reduce){.bar i{transition:none}}
+
+/* ---- safari restyle: khaki canvas, bushveld olive, stencil lettering, sunset sky ---- */
+:root{--bg:light-dark(#e7dcc0,#14170f);--card:light-dark(#f7f0dc,#1d2215);--line:light-dark(#c8b68c,#3a4128);--ink:light-dark(#2a2416,#ece4cf);--mut:light-dark(#6b5f44,#b3a98d);--chip:light-dark(#ece2c7,#262c1b);--band:#2f3b1f;--olive:#3b4a26;--sky:light-dark(#f6dcae,#3a2a22);--sky2:light-dark(#f3e6c8,#4a3a24)}
+body{background:var(--bg) radial-gradient(light-dark(#00000008,#ffffff05) 1px,transparent 1.5px) 0 0/6px 6px}
+h1,h3{font-family:"Saira Stencil One","Barlow Condensed",sans-serif;font-weight:400;letter-spacing:.01em}
+h1{font-size:clamp(34px,7vw,56px);color:#fff7e6;text-shadow:0 2px 0 #0004}
+header{position:relative;overflow:hidden;background:linear-gradient(#e9a14a 0%,#d9733a 42%,#a9502c 70%,#3a2a18 100%);padding:22px max(4vw,16px) 120px}
+header .hwrap{position:relative;z-index:1}
+#scene{position:absolute;left:0;right:0;bottom:0;height:130px;width:100%;z-index:0}
+.sub{color:#fff1d8}
+.big small,.prog{color:#fff1d8}.big{color:#fff7e6}
+.bar{background:#00000033;border:1px solid #ffffff55}
+.five span{border-color:#ffffff70;color:#fff7e6;background:#00000022}
+.five span.on{background:#fff7e6;color:#2f3b1f;border-color:#fff}
+.tools{background:var(--olive);border-bottom:4px solid #8a6a3a;box-shadow:0 4px 10px #0003}
+input[type=search]{background:#f7f0dc;color:#2a2416;border-color:#8a7a52}
+.seg{border-color:#ffffff40;gap:0}
+.seg button{background:transparent;color:#e7dcc0}
+.rare{background:transparent;color:#e7dcc0;border-color:#e7dcc080}
+.chips button{background:#ffffff14;color:#f1e8d0;border:1px solid #ffffff30}
+.chips button b{color:#d8cba8}
+.seg button[aria-pressed=true],.chips button[aria-pressed=true],.rare[aria-pressed=true]{background:#d9822b;color:#1f1608;border-color:#fff;outline:2px solid #fff;outline-offset:-2px;box-shadow:0 0 0 2px #fff}
+.seg button[aria-pressed=true]{box-shadow:none;outline-offset:-3px}
+.chips{padding:4px 3px 6px;display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:max-content;gap:7px 6px}
+.chips button[aria-pressed=true] b{color:#3a2a10}
+.note{background:var(--card);border-left:5px solid #8a6a3a;padding:10px 14px;border-radius:6px;color:var(--ink)}
+.card{border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 0 var(--line),0 6px 14px #0000001a;outline:1px dashed light-dark(#b8a275,#4c5535);outline-offset:-6px}
+.card.seen{border-color:#d9822b;box-shadow:0 0 0 2px #d9822b,0 6px 14px #0000001a}
+.pics{background:var(--line)}
+figure{background:linear-gradient(var(--sky),var(--sky2) 88%,var(--soil) 88%)}
+figcaption{font-family:"Barlow Condensed",sans-serif;text-transform:none;background:#2f3b1fdd;color:#f1e8d0}
+h3{font-size:25px;color:light-dark(#2f3b1f,#e9dfc0)}
+.tick{border-color:light-dark(#2f3b1f,#d8cba8);color:light-dark(#2f3b1f,#e9dfc0);font-family:"Barlow Condensed",sans-serif;font-size:17px;letter-spacing:.02em}
+.tick[aria-pressed=true]{background:#d9822b;border-color:#d9822b;color:#1f1608}
+.tags span{background:light-dark(#2f3b1f,#2f3b1f);color:#efe5c8}
+.links a{color:light-dark(#9a4f12,#e9a14a)}
+.when{color:light-dark(#9a4f12,#e9a14a)}
+footer{color:var(--mut)}
+@media(max-width:600px){header{padding-bottom:100px}#scene{height:110px}}
+
+.nm{flex:1;text-align:left;background:none;border:0;padding:0;color:inherit;cursor:pointer;min-height:44px;display:flex;flex-direction:column;justify-content:center}
+.chev{font:600 13px Barlow,sans-serif;color:light-dark(#9a4f12,#e9a14a);display:inline-flex;align-items:center;gap:5px;margin-top:3px}
+.chev::after{content:"";width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .2s}
+.nm[aria-expanded=true] .chev::after{transform:rotate(-135deg) translateY(-1px)}
+.more{display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--line);padding-top:8px;margin-top:2px}
+.more[hidden]{display:none}
+.txt{padding:10px 14px 12px;gap:4px}
+.when:empty{display:none}
+.tags{margin-top:4px}
+figure{cursor:pointer}
+@media(prefers-reduced-motion:reduce){.chev::after{transition:none}}
+
+#sort{font:600 14px Barlow,sans-serif;min-height:44px;padding:0 10px;border-radius:10px;border:1px solid #ffffff40;background:#ffffff14;color:#f1e8d0}
+#sort option{color:#2a2416;background:#f7f0dc}
+.seenh{font-family:"Saira Stencil One","Barlow Condensed",sans-serif;font-weight:400;font-size:28px;color:light-dark(#2f3b1f,#e9dfc0);margin:34px 0 14px;padding-top:14px;border-top:3px dashed light-dark(#8a6a3a,#6b5a36);display:flex;gap:10px;align-items:baseline}
+.seenh span{font:600 16px Barlow,sans-serif;color:var(--mut)}
+#gridSeen .card{opacity:.92}
+
+/* ---- compact header + toolbar ---- */
+header{padding:14px max(4vw,16px) 58px}
+#scene{height:66px}
+.hwrap{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px 16px}
+h1{font-size:clamp(26px,6vw,40px)}
+.big{font-size:clamp(24px,5vw,34px)}.bar{margin-top:3px;width:min(200px,38vw);height:6px}
+.five{gap:4px}.five span{font-size:12px;padding:2px 8px}
+.tools{padding:8px max(4vw,16px) 6px;transition:transform .25s ease}
+.tools.tuck{transform:translateY(-110%)}
+.twrap{gap:6px}
+.row1{flex-wrap:nowrap}
+input[type=search]{min-height:42px;padding:8px 12px}
+.optb{flex:none;font:600 14px Barlow,sans-serif;min-height:42px;padding:0 12px;border-radius:10px;border:1px solid #ffffff40;background:#ffffff14;color:#f1e8d0;cursor:pointer;display:flex;align-items:center;gap:6px}
+.optb[aria-expanded=true]{outline:2px solid #fff;outline-offset:-2px}
+#optSum:not(:empty){background:#d9822b;color:#1f1608;border-radius:9px;padding:0 7px;font-size:12px}
+.opts{display:flex;flex-wrap:wrap;gap:6px}.opts[hidden]{display:none}
+.chips{gap:5px 5px;padding:3px 3px 4px}
+.chips button{min-height:34px;font-size:13px;padding:0 11px}
+.note{font-size:14px;padding:8px 12px;margin-bottom:12px}
+main{padding-top:12px}
+@media(max-width:600px){header{padding-bottom:52px}#scene{height:58px}.hwrap{grid-template-columns:minmax(0,1fr) auto}.prog{text-align:right}.bar{margin-left:auto}}
+@media(prefers-reduced-motion:reduce){.tools{transition:none}}
+
+.locb{margin-top:6px;font:600 14px Barlow,sans-serif;min-height:34px;padding:0 12px;border-radius:17px;border:2px solid #fff;background:#00000030;color:#fff7e6;cursor:pointer}
+.lrow{display:flex;gap:8px;align-items:center;margin-top:3px;flex-wrap:wrap}
+.lrow .chev{margin-top:0}
+.lk{font:700 12px Barlow,sans-serif;padding:2px 8px;border-radius:10px;white-space:nowrap}
+.lk.vl{background:#3b6b2a;color:#fff}.lk.l{background:#7d8f2e;color:#fff}.lk.g{background:#d9a441;color:#2a1c06}.lk.p{background:#c9773a;color:#fff}.lk.r{background:#8a3b2a;color:#fff}
+.src{margin:30px 0 0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px}
+.src summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;align-items:center}.src a{color:light-dark(#9a4f12,#e9a14a)}
+.ov{position:fixed;inset:0;z-index:20;background:#1a1408cc;display:grid;place-items:center;padding:16px}.ov[hidden]{display:none}
+.dlg{background:var(--card);color:var(--ink);border-radius:14px;max-width:560px;width:100%;max-height:88vh;overflow:auto;padding:18px;border:3px solid #8a6a3a}
+.dlg h2{font-family:"Saira Stencil One","Barlow Condensed",sans-serif;font-weight:400;font-size:28px;margin:0 0 4px}
+.dlg p{margin:0 0 10px;color:var(--mut);font-size:15px}
+.pkg h3{font:700 15px Barlow,sans-serif;margin:12px 0 6px;color:light-dark(#2f3b1f,#e9dfc0)}
+.pkg div{display:flex;flex-wrap:wrap;gap:6px}
+.pkg button{font:600 14px Barlow,sans-serif;min-height:40px;padding:0 12px;border-radius:20px;border:1px solid var(--line);background:var(--chip);color:var(--ink);cursor:pointer}
+.pkg button[aria-pressed=true]{background:#d9822b;color:#1f1608;outline:2px solid #fff;box-shadow:0 0 0 4px #d9822b}
+.pkc{margin-top:14px;font:600 15px Barlow,sans-serif;min-height:44px;padding:0 16px;border-radius:10px;border:2px solid var(--ink);background:none;color:var(--ink);cursor:pointer}
+
+.ov{display:block;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:12px}
+.ov[hidden]{display:none}
+.dlg{max-height:none;overflow:visible;margin:0 auto 40px}
+.pkhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;position:sticky;top:-18px;background:var(--card);padding:6px 0;z-index:1}
+.pkhead .pkc{margin-top:0;flex:none}
+.pktabs{display:flex;border:2px solid #2f3b1f;border-radius:10px;overflow:hidden;margin:4px 0 8px}
+.pktabs button{flex:1;font:600 14px Barlow,sans-serif;min-height:42px;border:0;background:none;color:var(--ink);cursor:pointer}
+.pktabs button[aria-pressed=true]{background:#2f3b1f;color:#fff7e6}
+#pkq{width:100%;margin-bottom:4px}
+.pkg h3{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}
+.rg{font:700 11px Barlow,sans-serif;background:#2f3b1f;color:#efe5c8;padding:1px 7px;border-radius:8px}
+.pknote{font-size:13px;color:var(--mut);margin:10px 0 0}
+
+.hbtns{display:flex;flex-wrap:wrap;gap:6px}
+.sg{display:block;font:600 12.5px Barlow,sans-serif;color:light-dark(#9a4f12,#e9a14a);margin-top:3px}.sg[hidden]{display:none}
+.repb{font:600 14px Barlow,sans-serif;min-height:38px;padding:0 12px;border-radius:10px;border:2px solid light-dark(#2f3b1f,#d8cba8);background:none;color:inherit;cursor:pointer}
+.pf{margin-top:12px}.pf h3{font:700 15px Barlow,sans-serif;margin:0 0 6px;color:light-dark(#2f3b1f,#e9dfc0)}
+.pseg{display:flex;flex-wrap:wrap;gap:6px}
+.pseg button,.step button{font:600 14px Barlow,sans-serif;min-height:40px;padding:0 12px;border-radius:20px;border:1px solid var(--line);background:var(--chip);color:var(--ink);cursor:pointer}
+.pseg button[aria-pressed=true]{background:#d9822b;color:#1f1608;outline:2px solid #fff;box-shadow:0 0 0 4px #d9822b}
+.step{display:flex;align-items:center;gap:10px;margin-top:8px}.step button{min-width:44px;padding:0}.step b{min-width:24px;text-align:center;font-size:17px}.step[hidden]{display:none}
+.pf[hidden]{display:none}
+.toast.share{flex-wrap:wrap;max-width:calc(100% - 24px);justify-content:center;gap:8px}
+.toast.share[hidden]{display:none}
+body:not(.cloud) .repb{display:none}
+.credit{position:absolute;left:6px;bottom:6px;font:600 10.5px Barlow,sans-serif;color:#fff;background:#0008;padding:1px 6px;border-radius:8px;text-decoration:none}
+</style>
+</head>
+<body>
+<header><svg id="scene" viewBox="0 0 1200 130" preserveAspectRatio="xMidYMax slice" aria-hidden="true"></svg><div class="hwrap">
+ <div><h1>Kruger tick list</h1><div class="hbtns"><button class="locb" id="locb">Set your location</button><button class="locb" id="planb">Plan</button></div></div>
+ <div class="prog"><div class="big" id="cnt">0 <small>of 0 seen</small></div><div class="bar"><i id="barI"></i></div></div>
+ <div class="five" id="five"></div>
+</div></header>
+<div class="tools" id="tools"><div class="twrap">
+ <div class="row1"><input type="search" id="q" placeholder="Search animals" aria-label="Search animals"><button class="optb" id="optb" aria-expanded="false" aria-controls="opts">Options<span id="optSum"></span></button></div>
+ <div class="opts" id="opts" hidden><div class="seg" role="group" aria-label="Show"><button data-s="all" aria-pressed="true">All</button><button data-s="todo" aria-pressed="false">To find</button><button data-s="seen" aria-pressed="false">Seen</button></div><button class="rare" id="rare" aria-pressed="false">Show rarities</button><select id="sort" aria-label="Sort"><option value="likely">Most likely first</option><option value="az">A to Z</option></select></div>
+ <div class="chips" id="chips"></div>
+</div></div>
+<main>
+ <p class="note" id="note">Tap a name or picture for details. Set your outing with <b>Plan</b> at the top; sorting and rare animals are under <b>Options</b>.</p>
+ <input type="file" id="file" accept="image/*" hidden>
+ <div class="grid" id="grid"></div>
+ <p class="empty" id="empty" hidden>No animals match. Try another filter.</p>
+ <h2 class="seenh" id="seenh" hidden>Already seen <span id="seenN"></span></h2>
+ <div class="grid" id="gridSeen"></div>
+</main>
+<details class="src"><summary>How the “likely to see” ratings are worked out</summary>
+<p>Each animal gets a chance score for each part of Kruger, based on how many there are, where in the park they live, how visible they are by day from the road, and the season (November is summer: migrant birds are here). Bands: Very likely (80+), Likely (50–79), Good chance (25–49), Possible (10–24), Rare here (under 10). They are estimates for a few days’ visit, not guarantees.</p>
+<p>Sources: <a href="https://www.sanparks.org/conservation/scientific-services/stories/understanding-wildlife-in-kruger-national-park-animal-population-trends-part2" target="_blank" rel="noopener">SANParks 2023 survey trends</a> · <a href="https://pmg.org.za/committee-question/41235/" target="_blank" rel="noopener">Lion estimate 2023–25 (Parliament reply)</a> · <a href="https://africageographic.com/stories/kruger-lion-population-declining-in-the-north/" target="_blank" rel="noopener">Northern lion survey (EWT)</a> · <a href="https://www.sanews.gov.za/node/76049" target="_blank" rel="noopener">White rhino numbers</a> · <a href="https://africageographic.com/stories/another-year-of-loss-an-update-on-krugers-rhino-populations/" target="_blank" rel="noopener">Black rhino numbers</a> · <a href="https://www.sanbi.org/wp-content/uploads/2026/03/Acinonyx-jubatus-NDF-supporting-document.pdf" target="_blank" rel="noopener">Cheetah estimate (SANBI)</a> · <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC3897702" target="_blank" rel="noopener">Wild dog &amp; cheetah survey</a> · <a href="https://www.krugerpark.co.za/Discovering_Kruger_Park-travel/explore-kruger-park-about-skukuza-area.html" target="_blank" rel="noopener">Sabie River leopards</a> · <a href="https://www.krugerpark.co.za/Kruger_National_Park_Regions-travel/krugerpark-the-northern-region.html" target="_blank" rel="noopener">Northern rare antelope</a> · <a href="https://krugerpark.co.za/Kruger_National_Park_Wildlife-travel/explore-kruger-park-buck-and-antelope.html" target="_blank" rel="noopener">Antelope by area</a> · <a href="https://wild-wings-safaris.com/blog/kruger-national-park-guide-north-vs-south-vs-central" target="_blank" rel="noopener">Regions guide</a></p>
+</details>
+<div class="ov" id="picker" hidden><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="pkh"><div class="pkhead"><h2 id="pkh">Where are you staying?</h2><button class="pkc" id="pkc">Close</button></div><p>Pick your rest camp, or your lodge or safari provider. The list re-orders to what you’re most likely to see there.</p>
+<div class="pktabs" role="group" aria-label="Choose by"><button data-t="camp" aria-pressed="true">Rest camp / area</button><button data-t="prov" aria-pressed="false">Lodge / safari provider</button></div>
+<input type="search" id="pkq" placeholder="Search camps, lodges, providers" aria-label="Search camps, lodges, providers"><div id="pkl"></div><p class="pknote" id="pknote">Can’t find yours? Pick the reserve or nearest camp — anything in the same area gives the same list.</p></div></div>
+<footer id="sync">Your ticks are saved on this device.</footer>
+<div class="ov" id="plandlg" hidden><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="plh"><div class="pkhead"><h2 id="plh">Your outing</h2><button class="pkc" id="plc">Done</button></div>
+<p>The chances update to match. Season, moon and sunrise/sunset are worked out for you: <span id="autoinfo"></span></p>
+<div class="pf"><h3>Show chances for</h3><div class="pseg" data-k="when"><button data-v="now">This drive</button><button data-v="today">Today</button><button data-v="stay">Whole stay</button></div>
+<div class="step" id="daysrow"><span>Days</span><button data-d="-1" aria-label="Fewer days">−</button><b id="daysv"></b><button data-d="1" aria-label="More days">+</button></div></div>
+<div class="pf"><h3>How you’re going out</h3><div class="pseg" data-k="act"><button data-v="self">Self-drive</button><button data-v="guided">Guided drive (SANParks)</button><button data-v="private">Private reserve drive</button><button data-v="night">Night drive</button><button data-v="walk">Bush walk</button><button data-v="hide">Hide / waterhole</button></div></div>
+<div class="pf" id="timerow"><h3>When (this drive)</h3><div class="pseg" data-k="time"><button data-v="auto">Now</button><button data-v="0">Early morning</button><button data-v="1">Mid-morning</button><button data-v="2">Midday</button><button data-v="3">Late afternoon</button><button data-v="4">Night</button></div>
+<div class="step"><span>Hours out</span><button data-h="-1" aria-label="Fewer hours">−</button><b id="hrsv"></b><button data-h="1" aria-label="More hours">+</button></div></div>
+<div class="pf"><h3>Weather right now</h3><div class="pseg" data-k="wx"><button data-v="normal">Normal</button><button data-v="hot">Hot (35 °C+)</button><button data-v="cool">Cool</button><button data-v="windy">Windy</button><button data-v="rain">Raining</button><button data-v="cloud">Overcast</button></div></div>
+<div class="pf"><h3>Last two weeks</h3><div class="pseg" data-k="rain"><button data-v="normal">Normal</button><button data-v="wet">Lots of rain</button><button data-v="dry">Very dry</button></div></div>
+<div class="pf"><h3>Route along a river or dam?</h3><div class="pseg" data-k="river"><button data-v="true">Yes</button><button data-v="false">No</button></div></div>
+<p class="pknote">Weather is picked by you for now: this page can’t fetch live weather yet.</p></div></div>
+<div class="toast share" id="sharebar" hidden><span id="smsg"></span><button id="sh1">Share sighting</button><button id="sh2">On a kill</button><button id="shx" aria-label="Dismiss">✕</button></div>
+<div class="toast" id="toast" hidden><span id="tmsg"></span><button id="undo">Undo</button></div>
+<script>
+{
+/* ---------- colour + random helpers ---------- */
+const sh=(h,k)=>{h=h.replace('#','');if(h.length==3)h=h.split('').map(x=>x+x).join('');const n=parseInt(h,16),t=k<0?0:255,a=Math.abs(k);const m=v=>Math.round(v+(t-v)*a);const r=m(n>>16),g=m(n>>8&255),b=m(n&255);return '#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1)};
+let seed=1;const R=()=>(seed=seed*16807%2147483647)/2147483647;
+const f=n=>Math.round(n*10)/10;
+let uid=0;
+/* ---------- four-legged animals ---------- */
+const HORN={lyre:'M0 0 C-6 -8 2 -14 -3 -22 C-5 -26 0 -28 2 -29',spiral:'M0 0 C-8 -4 -2 -10 -9 -13 C-15 -16 -6 -22 -12 -26 C-17 -29 -9 -34 -13 -38',nyala:'M0 0 C-7 -6 2 -12 -4 -18 C-7 -21 -1 -24 1 -26',curve:'M0 0 C-1 -14 -10 -26 -24 -30',ring:'M0 0 C-7 -8 -6 -18 2 -24',straight:'M0 0 L-5 -14',short:'M0 0 L-3 -7',twist:'M0 0 L-9 -20',tsess:'M0 0 C-3 -5 -8 -7 -11 -13',reed:'M0 0 C-6 -6 -5 -12 1 -16',cow:'M-2 0 C-10 3 -15 -3 -10 -11',buff:'M4 2 C-6 -2 -18 4 -20 -10'};
+function quad(p,u){
+ p=Object.assign({bw:62,bh:26,L:36,lt:6,nl:22,na:-55,nw:12,nw2:8,hs:22,hh:11,ha:25,ear:7,tail:'thin',tl:18,c:'#a57b50',hc:'#3b3026',hw:2.6,hl:1,snL:1},p);
+ const G=118,cx=86,y0=G-p.L-p.bh,x1=cx-p.bw/2,x2=cx+p.bw/2,lc=p.lc||p.c,far=sh(lc,-.28),dk=sh(p.c,-.45),ly=y0+p.bh*.5,tc=p.tc||dk;
+ let o=`<ellipse cx="${cx+6}" cy="${G+1}" rx="${f(p.bw*.62)}" ry="3.5" fill="#000" opacity=".13"/>`;
+ const tx=x1+3,ty=y0+5,tl=p.tl;
+ if(p.tail=='thin'){const ex=tx-tl*.2,ey=ty+tl;o+=`<path d="M${tx} ${ty} q${f(-tl*.3)} ${f(tl*.3)} ${f(-tl*.2)} ${tl}" stroke="${p.c}" stroke-width="${p.tw||2.4}" fill="none" stroke-linecap="round"/>`;if(p.tuft)o+=`<ellipse cx="${f(ex)}" cy="${f(ey)}" rx="2.4" ry="4.5" fill="${tc}"/>`}
+ if(p.tail=='bushy'){o+=`<path d="M${tx} ${ty+2} q${f(-tl*.6)} ${f(tl*.1)} ${f(-tl*.8)} ${f(tl*.8)}" stroke="${p.c}" stroke-width="${p.tw||6}" fill="none" stroke-linecap="round"/>`;if(p.tc)o+=`<circle cx="${f(tx-tl*.8)}" cy="${f(ty+2+tl*.8)}" r="${(p.tw||6)/2}" fill="${p.tc}"/>`}
+ if(p.tail=='cat'){o+=`<path d="M${tx} ${ty+3} q${f(-tl*.55)} ${f(tl*.2)} ${f(-tl*.5)} ${f(tl*.85)}" stroke="${p.c}" stroke-width="${p.tw||3.4}" fill="none" stroke-linecap="round"/>`;if(p.tuft)o+=`<circle cx="${f(tx-tl*.5)}" cy="${f(ty+3+tl*.85)}" r="2.8" fill="${tc}"/>`;else if(p.tc)o+=`<circle cx="${f(tx-tl*.5)}" cy="${f(ty+3+tl*.85)}" r="1.9" fill="${p.tc}"/>`}
+ if(p.tail=='sq')o+=`<path d="M${tx} ${ty+2} q${f(-tl*.8)} ${f(-tl*.1)} ${f(-tl*.4)} ${f(-tl*.9)}" stroke="${p.c}" stroke-width="${p.tw||8}" fill="none" stroke-linecap="round"/>`;
+ if(p.tail=='short')o+=`<path d="M${tx} ${ty} l-5 7" stroke="${p.tc||p.c}" stroke-width="4" stroke-linecap="round"/>`;
+ if(p.tail=='up'){o+=`<path d="M${tx+2} ${ty} l-4 ${-tl}" stroke="${p.c}" stroke-width="2" stroke-linecap="round"/>`;if(p.tuft)o+=`<ellipse cx="${tx-2}" cy="${ty-tl-2}" rx="2" ry="4" fill="${tc}"/>`}
+ const leg=(x,col)=>{let r=`<rect x="${f(x)}" y="${f(ly)}" width="${p.lt}" height="${f(G-ly)}" rx="${p.lt/2}" fill="${col}"/>`;if(p.lstr)for(let yy=ly+p.bh*.5;yy<G-4;yy+=5)r+=`<rect x="${f(x)}" y="${f(yy)}" width="${p.lt}" height="2" fill="#1b1b1b"/>`;if(p.hoof)r+=`<rect x="${f(x-.3)}" y="${G-3}" width="${p.lt+.6}" height="3" rx="1" fill="#2a2420"/>`;return r};
+ o+=leg(x1+13,far)+leg(x2-p.lt-4,far)+leg(x1+5,lc)+leg(x2-p.lt-12,lc);
+ const a=p.na*Math.PI/180,sx=x2-p.bh*.3,sy=y0+p.bh*.35,hx=sx+p.nl*Math.cos(a),hy=sy+p.nl*Math.sin(a),nx=-Math.sin(a),ny=Math.cos(a);
+ const P=(x,y)=>f(x)+','+f(y);
+ const neck=`<polygon points="${P(sx+nx*p.nw/2,sy+ny*p.nw/2)} ${P(hx+nx*p.nw2/2,hy+ny*p.nw2/2)} ${P(hx-nx*p.nw2/2,hy-ny*p.nw2/2)} ${P(sx-nx*p.nw/2,sy-ny*p.nw/2)}"/><circle cx="${f(hx)}" cy="${f(hy)}" r="${p.nw2/2}"/>`;
+ let S=neck+`<rect x="${x1}" y="${f(y0)}" width="${p.bw}" height="${p.bh}" rx="${Math.min(p.bh,p.bw)/2}"/>`;
+ if(p.hump)S+=`<ellipse cx="${f(x2-p.bw*.28)}" cy="${f(y0+3)}" rx="${f(p.bw*.2)}" ry="${p.hump+3}"/>`;
+ if(p.dew)o+=`<ellipse cx="${f(sx+nx*p.nw*.4)}" cy="${f(sy+p.bh*.25)}" rx="5" ry="9" fill="${p.dew}"/>`;
+ o+=`<clipPath id="c${u}">${S}</clipPath><g fill="${p.c}">${S}</g><g clip-path="url(#c${u})">`;
+ if(p.b)o+=`<ellipse cx="${cx}" cy="${f(y0+p.bh)}" rx="${f(p.bw*.45)}" ry="${f(p.bh*.38)}" fill="${p.b}"/>`;
+ const X0=x1-5,X1=Math.max(x2,hx)+15,Y0=Math.min(y0,hy)-15,Y1=y0+p.bh+5,pc=p.pc||'#1e1810';seed=7+p.bw;
+ switch(p.pat){
+  case'zebra':for(let x=X0;x<X1;x+=6.5)o+=`<path d="M${f(x)} ${f(Y0)} q4 ${f((Y1-Y0)/2)} -2 ${f(Y1-Y0)}" stroke="${pc}" stroke-width="3" fill="none"/>`;break;
+  case'thin':{const n=p.pn||7;for(let i=0;i<n;i++){const x=x1+p.bw*(.22+.58*i/n);o+=`<path d="M${f(x)} ${f(y0)} l1 ${f(p.bh*.75)}" stroke="${p.pc||'#fff'}" stroke-width="1.3" opacity=".9"/>`}break}
+  case'spots':for(let x=X0;x<X1;x+=5)for(let y=Y0;y<Y1;y+=5)o+=`<circle cx="${f(x+R()*3)}" cy="${f(y+R()*3)}" r="1.3" fill="${pc}"/>`;break;
+  case'rose':for(let x=X0;x<X1;x+=7)for(let y=Y0;y<Y1;y+=7)o+=`<circle cx="${f(x+R()*3)}" cy="${f(y+R()*3)}" r="2.5" fill="none" stroke="${pc}" stroke-width="1.4" stroke-dasharray="3.4 1.8"/>`;break;
+  case'patch':for(let x=X0;x<X1;x+=10)for(let y=Y0;y<Y1+6;y+=10)o+=`<rect x="${f(x+R()*1.6)}" y="${f(y+R()*1.6)}" width="8.2" height="8.2" rx="2.6" fill="${pc}"/>`;break;
+  case'blotch':{const cs=['#1c1a17','#e9d9b0','#5e3c1e','#c9a46a'];for(let i=0;i<46;i++)o+=`<ellipse cx="${f(X0+R()*(X1-X0))}" cy="${f(Y0+R()*(Y1-Y0))}" rx="${f(2+R()*4)}" ry="${f(2+R()*3)}" fill="${cs[i%4]}"/>`;break}
+  case'hspots':for(let i=0;i<34;i++)o+=`<circle cx="${f(x1+R()*p.bw)}" cy="${f(y0+R()*p.bh*.8)}" r="2" fill="${pc}"/>`;break;
+  case'saddle':o+=`<rect x="${f(X0)}" y="${f(Y0)}" width="${f(X1-X0)}" height="${f(y0+p.bh*.45-Y0)}" fill="${pc}"/>`;break;
+  case'bands':for(let x=x1+8;x<x2-4;x+=5)o+=`<rect x="${f(x)}" y="${f(y0)}" width="2" height="${f(p.bh*.6)}" fill="${pc}" opacity=".75"/>`;break;
+  case'scales':for(let y=y0-2,r=0;y<y0+p.bh;y+=6,r++)for(let x=X0+(r%2)*3.5;x<X1;x+=7)o+=`<path d="M${f(x)} ${f(y)} q3.5 5 7 0" stroke="${pc}" stroke-width="1.4" fill="none"/>`;break;
+  case'rump':o+=`<ellipse cx="${x1+9}" cy="${f(y0+p.bh*.42)}" rx="8" ry="${f(p.bh*.36)}" fill="none" stroke="#f4f1ea" stroke-width="3"/>`;break;
+  case'dots':for(let i=0;i<9;i++)o+=`<circle cx="${f(x1+12+R()*(p.bw-24))}" cy="${f(y0+p.bh*(.3+R()*.4))}" r="1.3" fill="#f4efe4"/>`;o+=`<path d="M${x1+p.bw*.4} ${f(y0+2)} l0 ${f(p.bh*.6)}" stroke="#f4efe4" stroke-width="1.2"/>`;break;
+  case'side':o+=`<rect x="${f(X0)}" y="${f(y0+p.bh*.42)}" width="${f(X1-X0)}" height="${f(p.bh*.22)}" fill="${sh(p.c,.25)}"/>`;break;
+  case'line':o+=`<rect x="${f(x1+8)}" y="${f(y0+p.bh*.42)}" width="${p.bw-16}" height="2" fill="#efece4" opacity=".85"/>`;break;
+ }
+ o+='</g>';
+ if(p.pat=='quills')for(let i=0;i<16;i++){const x=x1+6+i*(p.bw-10)/16;o+=`<path d="M${f(x)} ${f(y0+6)} l${f(-8-R()*6)} ${f(-10-R()*10)}" stroke="${i%2?'#f2efe6':'#1b1816'}" stroke-width="1.6" stroke-linecap="round"/>`}
+ if(p.crest)o+=`<path d="M${f(sx-nx*p.nw/2)} ${f(sy-ny*p.nw/2)} L${f(hx-nx*p.nw2/2)} ${f(hy-ny*p.nw2/2)}" stroke="${p.crest}" stroke-width="${p.fringe?3:3.6}" stroke-linecap="round"/>`;
+ if(p.fringe)o+=`<path d="M${x1+8} ${f(y0+p.bh)} L${x2-6} ${f(y0+p.bh)}" stroke="${p.crest}" stroke-width="3" stroke-dasharray="2 1.5"/><path d="M${f(x1+10)} ${f(y0+1)} L${x2-8} ${f(y0+1)}" stroke="${p.crest}" stroke-width="2.4"/>`;
+ if(p.beard)o+=`<path d="M${f(sx+nx*p.nw/2)} ${f(sy+ny*p.nw/2)} L${f(hx+nx*p.nw2/2)} ${f(hy+ny*p.nw2/2+3)}" stroke="${p.beard}" stroke-width="3" stroke-dasharray="2 1.4"/>`;
+ if(p.mane){const mr=p.mr||15;o+=`<ellipse cx="${f(hx-3)}" cy="${f(hy+4)}" rx="${mr}" ry="${f(mr*1.15)}" fill="${p.mane}"/><ellipse cx="${f(hx-6)}" cy="${f(hy+10)}" rx="${f(mr*.8)}" ry="${f(mr)}" fill="${sh(p.mane,-.15)}"/>`}
+ const H=p.hs,HH=p.hh,sn=p.snL;
+ let h='';
+ if(p.ear>0&&!p.eEar){h+=p.earR?`<circle cx="${f(-H*.05)}" cy="${f(-HH*.5)}" r="${f(p.ear*.55)}" fill="${p.c}" stroke="${dk}" stroke-width=".8"/>`:`<g transform="translate(${f(-H*.02)} ${f(-HH*.5-p.ear*.5)}) rotate(-30)"><ellipse rx="${f(p.ear*.4)}" ry="${p.ear}" fill="${p.c}"/><ellipse rx="${f(p.ear*.2)}" ry="${f(p.ear*.65)}" fill="${dk}" opacity=".45"/></g>`}
+ if(p.horn&&p.horn!='oss')h+=`<g transform="translate(${f(H*.02)} ${f(-HH*.42)}) scale(${p.hl})"><path d="${HORN[p.horn]}" stroke="${p.hc}" stroke-width="${f(p.hw/p.hl)}" fill="none" stroke-linecap="round"/></g>`;
+ if(p.horn=='oss')h+=`<path d="M0 ${f(-HH*.3)} l-2 -8 M4 ${f(-HH*.25)} l0 -8" stroke="${p.hc}" stroke-width="3" stroke-linecap="round"/><circle cx="-2" cy="${f(-HH*.3-8)}" r="${p.ossTuft?2.6:1.6}" fill="${p.ossTuft?'#222':p.hc}"/><circle cx="4" cy="${f(-HH*.25-8)}" r="${p.ossTuft?2.6:1.6}" fill="${p.ossTuft?'#222':p.hc}"/>`;
+ h+=`<ellipse cx="${f(H*.2)}" cy="0" rx="${f(H*.45)}" ry="${f(HH/2)}" fill="${p.c}"/>`;
+ if(!p.trunk)h+=`<ellipse cx="${f(H*(.45+.25*sn))}" cy="${f(HH*.12)}" rx="${f(H*.33*sn)}" ry="${f(HH*.36)}" fill="${p.muz||p.c}"/><circle cx="${f(H*(.45+.54*sn))}" cy="${f(HH*.05)}" r="1.3" fill="${dk}"/>`;
+ if(p.pat=='zebra')for(let i=0;i<4;i++)h+=`<path d="M${f(H*(-.15+i*.15))} ${f(-HH*.45)} l${f(H*.08)} ${f(HH*.8)}" stroke="${pc}" stroke-width="2.2"/>`;
+ if(p.boss)h+=`<ellipse cx="2" cy="${f(-HH*.42)}" rx="8" ry="3.4" fill="${p.hc}"/>`;
+ if(p.trunk)h+=`<path d="M${f(H*.55)} ${f(HH*.05)} q${f(H*.3)} ${f(p.trL*.5)} ${f(H*.05)} ${p.trL}" stroke="${p.c}" stroke-width="${f(H*.24)}" fill="none" stroke-linecap="round"/>`;
+ if(p.eEar)h+=`<ellipse cx="${f(-H*.02)}" cy="${f(HH*.08)}" rx="${f(H*.4)}" ry="${f(HH*.6)}" fill="${sh(p.c,-.1)}" stroke="${dk}" stroke-width="1"/>`;
+ if(p.mask)h+=`<ellipse cx="${f(H*.3)}" cy="${f(-HH*.08)}" rx="${f(H*.22)}" ry="${f(HH*.26)}" fill="${p.mask}"/>`;
+ if(p.face)h+=`<path d="M${f(H*.28)} ${f(-HH*.32)} l${f(H*.3)} ${f(HH*.26)}" stroke="${p.face}" stroke-width="1.6" stroke-linecap="round"/>`;
+ h+=`<circle cx="${f(H*.24)}" cy="${f(-HH*.14)}" r="${H>30?2.2:1.5}" fill="#17120d"/>`;
+ if(p.er)h+=`<circle cx="${f(H*.24)}" cy="${f(-HH*.14)}" r="2.4" fill="none" stroke="${p.er}" stroke-width="1"/>`;
+ if(p.nh){const bx=H*(.45+.45*sn),by=-HH*.25;h+=`<path d="M${f(bx-5)} ${f(by)} L${f(bx+1)} ${f(by-p.nh)} L${f(bx+4)} ${f(by)}Z" fill="${sh(p.c,-.25)}"/><path d="M${f(bx-H*.28-3)} ${f(by-1)} L${f(bx-H*.28)} ${f(by-p.nh*.45)} L${f(bx-H*.28+3)} ${f(by-1)}Z" fill="${sh(p.c,-.25)}"/>`}
+ if(p.warts)for(let i=0;i<p.warts;i++)h+=`<ellipse cx="${f(H*(.5+i*.2))}" cy="${f(-HH*.12+i*2)}" rx="2.4" ry="1.6" fill="${dk}"/>`;
+ if(p.tk&&p.tup)h+=`<path d="M${f(H*.82)} ${f(HH*.22)} q${f(H*.14)} -1 ${f(H*.12)} ${-p.tk}" stroke="${p.tusk||'#efe8d6'}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`;
+ else if(p.tk)h+=`<path d="M${f(H*.62)} ${f(HH*.3)} q${f(H*.2)} ${f(p.tk*.7)} ${f(H*.55)} ${f(p.tk*.2)}" stroke="#f3eee2" stroke-width="${p.tk>12?4.4:3}" fill="none" stroke-linecap="round"/>`;
+ o+=`<g transform="translate(${f(hx)} ${f(hy)}) rotate(${p.ha})">${h}</g>`;
+ return o;
+}
+/* ---------- birds ---------- */
+function owl(p){
+ const G=112,c=p.c,w=p.w||sh(c,-.12),h=p.h||c;
+ let o=`<path d="M40 ${G+3} L165 ${G}" stroke="#6b5136" stroke-width="5" stroke-linecap="round"/>`;
+ o+=`<ellipse cx="100" cy="${G-28}" rx="24" ry="30" fill="${c}"/><ellipse cx="80" cy="${G-28}" rx="9" ry="24" fill="${w}"/><ellipse cx="120" cy="${G-28}" rx="9" ry="24" fill="${w}"/>`;
+ for(let i=0;i<5;i++)o+=`<path d="M${92+i*4} ${G-40} l0 22" stroke="${sh(c,-.25)}" stroke-width="1" opacity=".6"/>`;
+ if(!p.noTufts)o+=`<path d="M83 ${G-74} l-4 -14 l12 8Z M117 ${G-74} l4 -14 l-12 8Z" fill="${sh(h,-.2)}"/>`;
+ o+=`<circle cx="100" cy="${G-66}" r="20" fill="${h}"/><ellipse cx="100" cy="${G-64}" rx="16" ry="14" fill="${sh(h,.25)}"/>`;
+ o+=`<circle cx="93" cy="${G-67}" r="5" fill="${p.eye}"/><circle cx="107" cy="${G-67}" r="5" fill="${p.eye}"/><circle cx="94.5" cy="${G-68.5}" r="1.2" fill="#fff"/><circle cx="108.5" cy="${G-68.5}" r="1.2" fill="#fff"/>`;
+ if(p.lid)o+=`<path d="M88 ${G-69} q5 -6 10 0 M102 ${G-69} q5 -6 10 0" stroke="${p.lid}" stroke-width="2.6" fill="none"/>`;
+ o+=`<path d="M97 ${G-61} l3 6 l3 -6Z" fill="#c9c2b0"/><path d="M92 ${G} l0 -4 M96 ${G} l0 -4 M104 ${G} l0 -4 M108 ${G} l0 -4" stroke="#8a7a5c" stroke-width="2.4"/>`;
+ return o;
+}
+function bird(p,u){
+ p=Object.assign({c:'#7a6a55',bk:'#333',bl:12,bd:4,bc:0,ll:24,lw:2.4,lc:'#a08a6a',bw:40,bh:26,tilt:-15,nl:10,nw:8,hr:8,tail:14,eye:'#1a1410'},p);
+ if(p.owl)return owl(p);
+ const G=118,base=p.perch?G-8:G,cx=94,cy=base-p.ll-p.bh*.38,w=p.w||sh(p.c,-.12),h=p.h||p.c;
+ let o='';
+ if(p.perch)o+=`<path d="M28 ${base+3} L172 ${base}" stroke="#6b5136" stroke-width="5" stroke-linecap="round"/>`;
+ else o+=`<ellipse cx="${cx}" cy="${G+1}" rx="${f(p.bw*.55)}" ry="3" fill="#000" opacity=".13"/>`;
+ const lt=cy+p.bh*.3;
+ o+=`<path d="M${cx-4} ${f(lt)} L${cx-7} ${base} M${cx+4} ${f(lt)} L${cx+5} ${base} M${cx-12} ${base} l9 0 M${cx+1} ${base} l9 0" stroke="${p.lc}" stroke-width="${p.lw}" stroke-linecap="round" fill="none"/>`;
+ if(p.thighs)o+=`<path d="M${cx-4} ${f(lt-2)} l-2 ${f(p.ll*.35)} M${cx+4} ${f(lt-2)} l0 ${f(p.ll*.35)}" stroke="${p.thighs}" stroke-width="5" stroke-linecap="round"/>`;
+ const bx0=cx-p.bw*.42;
+ let g=`<polygon points="${f(bx0)},${f(cy-3)} ${f(bx0-p.tail)},${f(cy+p.tail*.15)} ${f(bx0-p.tail)},${f(cy+p.tail*.15+5)} ${f(cx-p.bw*.28)},${f(cy+6)}" fill="${p.tc||w}"/>`;
+ g+=`<clipPath id="b${u}"><ellipse cx="${cx}" cy="${f(cy)}" rx="${p.bw/2}" ry="${p.bh/2}"/></clipPath><ellipse cx="${cx}" cy="${f(cy)}" rx="${p.bw/2}" ry="${p.bh/2}" fill="${p.c}"/><g clip-path="url(#b${u})">`;
+ if(p.belly)g+=`<ellipse cx="${f(cx+p.bw*.12)}" cy="${f(cy+p.bh*.32)}" rx="${f(p.bw*.45)}" ry="${f(p.bh*.42)}" fill="${p.belly}"/>`;
+ if(p.back)g+=`<ellipse cx="${f(cx-p.bw*.05)}" cy="${f(cy-p.bh*.45)}" rx="${f(p.bw*.42)}" ry="${f(p.bh*.32)}" fill="${p.back}"/>`;
+ if(p.bspots)for(let i=0;i<40;i++)g+=`<circle cx="${f(cx-p.bw/2+R()*p.bw)}" cy="${f(cy-p.bh/2+R()*p.bh)}" r="1" fill="${p.bspots}"/>`;
+ g+='</g>';
+ g+=`<ellipse cx="${f(cx-p.bw*.1)}" cy="${f(cy-p.bh*.05)}" rx="${f(p.bw*.38*(p.wr||1))}" ry="${f(p.bh*.33*(p.wr||1))}" fill="${w}"/>`;
+ if(p.wp)g+=`<ellipse cx="${f(cx-p.bw*.22)}" cy="${f(cy)}" rx="${f(p.bw*.2)}" ry="${f(p.bh*.2)}" fill="${p.wp}"/>`;
+ if(p.wspots){seed=11;for(let i=0;i<14;i++)g+=`<circle cx="${f(cx-p.bw*.4+R()*p.bw*.6)}" cy="${f(cy-p.bh*.25+R()*p.bh*.5)}" r="1.1" fill="${p.wspots}"/>`}
+ if(p.bands)for(let i=0;i<p.bands;i++)g+=`<path d="M${f(cx+p.bw*.3)} ${f(cy-p.bh*.2+i*5)} q4 1 ${f(p.bw*.15)} 3" stroke="#151515" stroke-width="3" fill="none" ${p.bands==1?'stroke-dasharray="3.5 2.5"':''}/>`;
+ o+=`<g transform="rotate(${p.tilt} ${cx} ${f(cy)})">${g}</g>`;
+ const t=p.tilt*Math.PI/180,px=p.bw*.36,py=-p.bh*.22,nbx=cx+px*Math.cos(t)-py*Math.sin(t),nby=cy+px*Math.sin(t)+py*Math.cos(t);
+ const hx=nbx+p.nl*.25+p.hr*.2,hy=nby-p.nl-p.hr*.3;
+ if(p.ruff)o+=`<ellipse cx="${f(nbx)}" cy="${f(nby)}" rx="${p.nw+3}" ry="${p.nw}" fill="${p.ruff}"/>`;
+ o+=`<path d="M${f(nbx)} ${f(nby)} L${f(hx)} ${f(hy)}" stroke="${p.nc||h}" stroke-width="${p.nw}" stroke-linecap="round"/>`;
+ if(p.pouch)o+=`<ellipse cx="${f(nbx+4)}" cy="${f(nby-2)}" rx="5" ry="9" fill="${p.pouch}"/>`;
+ if(p.crest=='quills')for(let i=0;i<6;i++)o+=`<path d="M${f(hx-p.hr*.5)} ${f(hy-p.hr*.2)} l${-10-i*1.5} ${-7+i*3}" stroke="${p.cc}" stroke-width="2" stroke-linecap="round"/>`;
+ if(p.crest=='tuft')o+=`<path d="M${f(hx-p.hr*.2)} ${f(hy-p.hr*.9)} l${f(-p.hr*1.4)} ${f(-p.hr*.3)} l${f(p.hr*.6)} ${f(p.hr*.9)}Z" fill="${p.cc||h}"/>`;
+ if(p.crest=='hammer')o+=`<path d="M${f(hx)} ${f(hy-p.hr*.8)} L${f(hx-p.hr*2.4)} ${f(hy-p.hr*.2)} L${f(hx-p.hr*.4)} ${f(hy+p.hr*.4)}Z" fill="${h}"/>`;
+ if(p.crest=='bar')o+=`<path d="M${f(hx)} ${f(hy-p.hr*.8)} l${-p.hr*1.3} ${p.hr*.3}" stroke="${p.cc}" stroke-width="2.4" stroke-linecap="round"/>`;
+ o+=`<circle cx="${f(hx)}" cy="${f(hy)}" r="${p.hr}" fill="${h}"/>`;
+ if(p.thr)o+=`<ellipse cx="${f(hx+p.hr*.3)}" cy="${f(hy+p.hr*.75)}" rx="${f(p.hr*.55)}" ry="${f(p.hr*.6)}" fill="${p.thr}"/>`;
+ if(p.cap)o+=`<path d="M${f(hx-p.hr)} ${f(hy)} a${p.hr} ${p.hr} 0 0 1 ${p.hr*2} 0Z" fill="${p.cap}"/>`;
+ if(p.helmet)o+=`<path d="M${f(hx-3)} ${f(hy-p.hr+1)} l3 -7 l3 7Z" fill="${p.helmet}"/>`;
+ if(p.face)o+=`<ellipse cx="${f(hx+p.hr*.2)}" cy="${f(hy)}" rx="${f(p.hr*.7)}" ry="${f(p.hr*.6)}" fill="${p.face}"/>`;
+ if(p.mask)o+=`<path d="M${f(hx-p.hr*.9)} ${f(hy-p.hr*.1)} L${f(hx+p.hr*.95)} ${f(hy)}" stroke="${p.mask}" stroke-width="2.6"/>`;
+ const bx=hx+p.hr*.75,bd=p.bd,bl=p.bl,bc=p.bc;
+ o+=`<path d="M${f(bx)} ${f(hy-bd/2)} Q${f(bx+bl*.6)} ${f(hy-bd/2+bc*.2)} ${f(bx+bl)} ${f(hy+bc)} L${f(bx)} ${f(hy+bd/2)}Z" fill="${p.bk}"/>`;
+ if(p.lowBlack)o+=`<path d="M${f(bx)} ${f(hy)} L${f(bx+bl*.4)} ${f(hy+bd*.35)} L${f(bx)} ${f(hy+bd/2)}Z" fill="#1a1a1a"/>`;
+ if(p.band)o+=`<path d="M${f(bx+bl*.45)} ${f(hy-bd)} l0 ${bd*2}" stroke="${p.band}" stroke-width="4"/>`;
+ if(p.saddle)o+=`<rect x="${f(bx)}" y="${f(hy-bd/2-1.5)}" width="5" height="3" rx="1" fill="${p.saddle}"/>`;
+ if(p.casque)o+=`<ellipse cx="${f(bx+bl*.25)}" cy="${f(hy-bd/2-1.5)}" rx="${f(bl*.28)}" ry="2.6" fill="${p.bk}"/>`;
+ if(p.wat)o+=`<ellipse cx="${f(bx+1)}" cy="${f(hy+bd/2+2)}" rx="2" ry="3" fill="${p.wat}"/>`;
+ o+=`<circle cx="${f(hx+p.hr*.2)}" cy="${f(hy-p.hr*.15)}" r="${f(Math.max(1.4,p.hr*.18))}" fill="${p.eye}"/>`;
+ if(p.er)o+=`<circle cx="${f(hx+p.hr*.2)}" cy="${f(hy-p.hr*.15)}" r="${f(Math.max(1.4,p.hr*.18)+1)}" fill="none" stroke="${p.er}" stroke-width="1"/>`;
+ return o;
+}
+/* ---------- primates ---------- */
+function ape(p){
+ const G=118,c=p.c,dk=sh(c,-.2),r=p.hr||12;let o=`<ellipse cx="92" cy="${G+1}" rx="34" ry="3.5" fill="#000" opacity=".13"/>`;
+ if(p.tail=='bent')o+=`<path d="M70 ${G-22} q-8 -22 -20 -12 q-6 8 -10 22" stroke="${c}" stroke-width="5" fill="none" stroke-linecap="round"/>`;
+ if(p.tail=='long')o+=`<path d="M68 ${G-12} q-30 6 -44 -6 q-6 -8 3 -12" stroke="${c}" stroke-width="4" fill="none" stroke-linecap="round"/>`;
+ if(p.tail=='bushy')o+=`<path d="M70 ${G-14} q-30 8 -46 -14" stroke="${c}" stroke-width="9" fill="none" stroke-linecap="round"/>`;
+ o+=`<ellipse cx="80" cy="${G-13}" rx="18" ry="12" fill="${dk}"/><ellipse cx="92" cy="${G-32}" rx="20" ry="24" transform="rotate(-15 92 ${G-32})" fill="${c}"/>`;
+ if(p.mantle)o+=`<ellipse cx="100" cy="${G-48}" rx="21" ry="15" fill="${sh(c,-.06)}"/>`;
+ o+=`<ellipse cx="97" cy="${G-3}" rx="11" ry="3.6" fill="${dk}"/><path d="M106 ${G-44} L114 ${G-3}" stroke="${c}" stroke-width="8" stroke-linecap="round"/>`;
+ if(p.earBig)o+=`<ellipse cx="104" cy="${G-70}" rx="5" ry="9" fill="${sh(c,.15)}" transform="rotate(-20 104 ${G-70})"/>`;
+ o+=`<circle cx="112" cy="${G-58}" r="${r}" fill="${c}"/>`;
+ if(!p.earBig)o+=`<circle cx="104" cy="${G-62}" r="3" fill="${dk}"/>`;
+ if(p.cheek)o+=`<ellipse cx="110" cy="${G-51}" rx="7" ry="5" fill="${p.cheek}"/>`;
+ o+=`<ellipse cx="118" cy="${G-57}" rx="8" ry="8" fill="${p.fc}"/>`;
+ const mL=p.mzL||1;o+=`<ellipse cx="${f(122+5*mL)}" cy="${G-53}" rx="${f(4+5*mL)}" ry="${f(3.5+2*mL)}" fill="${p.mz}"/>`;
+ if(p.brow)o+=`<path d="M111 ${G-64} q7 -5 14 0" stroke="${p.brow}" stroke-width="2.2" fill="none"/>`;
+ if(p.bigEye)o+=`<circle cx="119" cy="${G-60}" r="4.2" fill="#1a1410"/><circle cx="120.2" cy="${G-61.2}" r="1.3" fill="#fff"/>`;else o+=`<circle cx="119" cy="${G-60}" r="1.6" fill="#f3e3b0"/>`;
+ return o;
+}
+/* ---------- reptiles + insects ---------- */
+function croc(p){const G=118,c=p.c,dk=sh(c,-.35);let o=`<ellipse cx="100" cy="${G+1}" rx="80" ry="3" fill="#000" opacity=".13"/>`;
+ o+=`<rect x="66" y="${G-9}" width="7" height="9" rx="3" fill="${dk}"/><rect x="114" y="${G-9}" width="7" height="9" rx="3" fill="${dk}"/>`;
+ o+=`<polygon points="8,${G-8} 60,${G-23} 60,${G-5}" fill="${c}"/><ellipse cx="96" cy="${G-14}" rx="42" ry="10" fill="${c}"/><polygon points="128,${G-21} 188,${G-12} 188,${G-6} 128,${G-6}" fill="${c}"/><ellipse cx="132" cy="${G-17}" rx="12" ry="7" fill="${c}"/>`;
+ o+=`<path d="M135 ${G-7} L186 ${G-8}" stroke="#efe9d2" stroke-width="1.4" stroke-dasharray="1.5 2"/><circle cx="137" cy="${G-23}" r="3.4" fill="${c}"/><circle cx="138" cy="${G-24}" r="1.3" fill="#e2c13a"/>`;
+ for(let x=16;x<130;x+=7){const y=x<60?G-8-(x-8)/52*15:G-24;o+=`<path d="M${x} ${f(y+1)} l3 -4 l3 4Z" fill="${dk}"/>`}return o}
+function liz(p){const G=118,c=p.c,dk=sh(c,-.3);let o=`<ellipse cx="100" cy="${G+1}" rx="76" ry="3" fill="#000" opacity=".13"/>`;
+ o+=`<path d="M72 ${G-14} l-8 14 M112 ${G-14} l8 14" stroke="${dk}" stroke-width="4" stroke-linecap="round"/><polygon points="6,${G-6} 64,${G-20} 64,${G-11}" fill="${c}"/><ellipse cx="92" cy="${G-16}" rx="32" ry="8" fill="${c}"/><path d="M118 ${G-18} L140 ${G-22}" stroke="${c}" stroke-width="8" stroke-linecap="round"/><ellipse cx="148" cy="${G-23}" rx="13" ry="5" fill="${c}"/>`;
+ o+=`<path d="M60 ${G-16} l-2 14 M100 ${G-16} l2 14" stroke="${dk}" stroke-width="4" stroke-linecap="round"/><path d="M160 ${G-22} l7 0 l3 -2 M167 ${G-22} l3 2" stroke="#c0392b" stroke-width="1.2" fill="none"/><circle cx="148" cy="${G-25}" r="1.2" fill="#111"/>`;
+ seed=3;for(let i=0;i<22;i++)o+=`<circle cx="${f(36+R()*86)}" cy="${f(G-22+R()*9)}" r="1.4" fill="${p.pc}"/>`;return o}
+function snake(p){const d='M18 112 C46 84 76 124 104 98 S152 78 172 70';let o=`<path d="${d}" stroke="${p.c}" stroke-width="${p.w}" fill="none" stroke-linecap="round"/>`;
+ if(p.pc)o+=`<path d="${d}" stroke="${p.pc}" stroke-width="${f(p.w*.6)}" fill="none" stroke-dasharray="6 8"/>`;
+ o+=`<ellipse cx="176" cy="68" rx="${f(p.w*.95)}" ry="${f(p.w*.6)}" fill="${p.c}" transform="rotate(-20 176 68)"/><circle cx="178" cy="65" r="1.3" fill="#111"/>`;
+ if(p.ink)o+=`<path d="M181 69 l9 -2 l-8 5Z" fill="#111"/>`;return o}
+function tort(p){const G=118;let o=`<ellipse cx="100" cy="${G+1}" rx="50" ry="3.5" fill="#000" opacity=".13"/><ellipse cx="76" cy="${G-4}" rx="8" ry="5" fill="#a8895a"/><ellipse cx="124" cy="${G-4}" rx="8" ry="5" fill="#a8895a"/><path d="M58 ${G-12} l-${p.tl||4} 4" stroke="#a8895a" stroke-width="3" stroke-linecap="round"/><path d="M134 ${G-14} q12 -10 18 -4" stroke="#b89a6a" stroke-width="8" fill="none" stroke-linecap="round"/><circle cx="152" cy="${G-17}" r="1.2" fill="#111"/>`;
+ o+=`<clipPath id="t${p.u}"><path d="M58 ${G-8} C58 ${G-60} 142 ${G-60} 142 ${G-8}Z"/></clipPath><path d="M58 ${G-8} C58 ${G-60} 142 ${G-60} 142 ${G-8}Z" fill="${p.c}"/><g clip-path="url(#t${p.u})">`;
+ seed=5;for(let i=0;i<34;i++)o+=`<circle cx="${f(58+R()*84)}" cy="${f(G-50+R()*42)}" r="${f(1.5+R()*2.4)}" fill="${p.pc}"/>`;
+ return o+`</g><path d="M58 ${G-8} L142 ${G-8}" stroke="${sh(p.c,-.3)}" stroke-width="2"/>`}
+function cham(p){const c=p.c,dk=sh(c,-.3);let o=`<path d="M24 98 L176 92" stroke="#6b5136" stroke-width="5" stroke-linecap="round"/>`;
+ o+=`<path d="M76 78 q-18 8 -10 22 q8 8 14 0 q3 -7 -4 -8" stroke="${c}" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M86 82 l-4 14 M110 80 l6 14" stroke="${dk}" stroke-width="3.4" stroke-linecap="round"/>`;
+ o+=`<ellipse cx="98" cy="72" rx="26" ry="14" fill="${c}" transform="rotate(-6 98 72)"/><path d="M78 72 L118 68" stroke="#f1efe0" stroke-width="2" opacity=".8"/><path d="M118 60 L138 70 L120 80Z" fill="${c}"/><ellipse cx="116" cy="68" rx="6" ry="9" fill="${sh(c,.15)}"/><circle cx="126" cy="66" r="4.5" fill="${sh(c,.2)}"/><circle cx="127" cy="66" r="1.5" fill="#111"/>`;return o}
+function beetle(p){const G=118,c=p.c;let o=`<ellipse cx="108" cy="${G+1}" rx="40" ry="3" fill="#000" opacity=".13"/>`;
+ if(p.ball)o+=`<circle cx="52" cy="${G-19}" r="19" fill="#7a5a3a"/><circle cx="46" cy="${G-24}" r="3" fill="#8e6c47"/><circle cx="58" cy="${G-12}" r="2.4" fill="#5c4128"/>`;
+ o+=`<path d="M90 ${G-10} l-8 10 M106 ${G-8} l-2 8 M122 ${G-10} l8 10" stroke="#111" stroke-width="2.4" stroke-linecap="round"/>`;
+ o+=`<ellipse cx="104" cy="${G-20}" rx="30" ry="15" fill="${c}"/><ellipse cx="96" cy="${G-27}" rx="14" ry="4" fill="#fff" opacity=".16"/><ellipse cx="134" cy="${G-20}" rx="11" ry="10" fill="${sh(c,-.1)}"/><circle cx="147" cy="${G-16}" r="6" fill="${sh(c,-.2)}"/>`;
+ if(p.horn)o+=`<path d="M150 ${G-19} q12 -6 8 ${f(-26*p.horn)}" stroke="${sh(c,-.2)}" stroke-width="${f(3+2*p.horn)}" fill="none" stroke-linecap="round"/>`;return o}
+function antlion(){const G=118;let o=`<path d="M48 ${G} L100 ${G-12} L152 ${G}Z" fill="#000" opacity=".16"/>`;
+ o+=`<g fill="#d5dfe3" opacity=".75" stroke="#7f8f96" stroke-width=".6"><ellipse cx="96" cy="60" rx="36" ry="6" transform="rotate(-8 96 60)"/><ellipse cx="98" cy="70" rx="34" ry="5.5" transform="rotate(6 98 70)"/></g>`;
+ o+=`<ellipse cx="102" cy="66" rx="44" ry="3.2" fill="#3a3a30"/><circle cx="148" cy="65" r="4" fill="#3a3a30"/><path d="M150 62 q8 -10 14 -12 M150 63 q10 -6 16 -6" stroke="#3a3a30" stroke-width="1" fill="none"/><circle cx="164" cy="50" r="1.4" fill="#3a3a30"/><circle cx="166" cy="57" r="1.4" fill="#3a3a30"/>`;return o}
+const KIND={q:quad,b:bird,a:ape,croc,liz,snake,tort,cham,beetle,antlion};
+function svg(a,s){const p=Object.assign({},a.p,a[s]),k=p.s||1,z=a.z||p.z||1,u=++uid;p.u=u;
+ return `<svg viewBox="0 0 200 130" preserveAspectRatio="xMidYMax meet" role="img" aria-label="${a.n}, ${s=='m'?'male':'female'}"><g transform="translate(100 118) scale(${f(k*z*100)/100}) translate(-100 -118)">${KIND[a.k](p,u)}</g></svg>`}
+
+/* ---------- header scene ---------- */
+{const acacia=(x,s)=>`<g transform="translate(${x} 130) scale(${s})" fill="#1f1a10"><path d="M-3 0 L-2 -50 L-16 -72 M2 -50 L14 -70 M0 -50 L1 -76" stroke="#1f1a10" stroke-width="5" fill="none"/><path d="M-6 0 L-3 -50 L3 -50 L6 0Z"/><ellipse cx="0" cy="-80" rx="62" ry="11"/><ellipse cx="-22" cy="-86" rx="30" ry="8"/><ellipse cx="24" cy="-85" rx="28" ry="8"/></g>`;
+ let o=`<circle cx="860" cy="70" r="46" fill="#ffd27a" opacity=".85"/><path d="M0 112 Q300 96 600 108 T1200 104 L1200 130 L0 130Z" fill="#4a3420"/><path d="M0 120 Q250 110 520 118 T1200 116 L1200 130 L0 130Z" fill="#2a1f12"/>`;
+ o+=acacia(140,1)+acacia(420,.6)+acacia(1010,1.15)+acacia(1150,.5);
+ const sil=(x,sc,p)=>`<g transform="translate(${x} 12) scale(${sc})">${quad(Object.assign({},p,{c:'#1f1a10',b:null,pat:null,crest:null,mane:null,lc:null,hc:'#1f1a10',tc:'#1f1a10',dew:null,beard:null,face:null,er:null}),'s'+x)}</g>`;
+ o+=sil(560,.82,{bw:60,bh:30,L:56,lt:5,nl:56,na:-72,nw:12,nw2:7,hs:22,hh:10,ha:40,ear:6,horn:'oss',hw:3,tail:'thin',tl:30,tuft:1})+sil(690,.55,{bw:92,bh:54,L:38,lt:16,nl:4,na:-30,nw:40,nw2:36,hs:36,hh:34,ha:30,ear:0,eEar:1,trunk:1,trL:46,tk:18,tail:'thin',tl:30})+sil(300,.5,{bw:62,bh:26,L:40,lt:5,nl:24,na:-60,nw:12,nw2:8,hs:22,hh:11,ha:28,ear:7,horn:'lyre',hl:1.1,tail:'thin',tl:16});
+ document.getElementById('scene').innerHTML=o}
+/* ---------- the animals ---------- */
+const CAT={bw:70,bh:26,L:28,lt:7,nl:14,na:-25,nw:16,nw2:12,hs:20,hh:15,ha:10,ear:5,earR:1,tail:'cat',tl:34},
+DOG={bw:58,bh:22,L:32,lt:6,nl:14,na:-35,nw:14,nw2:10,hs:22,hh:12,ha:8,ear:8,tail:'bushy',tl:24},
+ANT={bw:62,bh:26,L:40,lt:5,nl:24,na:-60,nw:12,nw2:8,hs:22,hh:11,ha:28,ear:7,tail:'thin',tl:16,hoof:1},
+PIG={bw:58,bh:26,L:22,lt:5,nl:8,na:-10,nw:18,nw2:15,hs:28,hh:15,ha:20,ear:6,tail:'up',tl:20,tuft:1,tc:'#222',tup:1,snL:1.2},
+SMB={bw:34,bh:22,ll:10,lc:'#444',tail:18,perch:1,z:1.35,nl:3,nw:9,hr:7,tilt:-25};
+const A=[];
+const add=(id,n,sci,t,k,p,m,f2,b,tell,look,z)=>A.push({id,n,sci,t:t.split(' '),k,p,m:m||{},f:f2||{},b,tell,look,z});
+// Big 5
+add('lion','Lion','Panthera leo','big5 pred','q',{...CAT,c:'#c99a5b',b:'#e3c48f',tc:'#3a2a1a',tuft:1},{mane:'#7a4a22',mr:17},{s:.85},'Africa’s only social cat, living in prides. Lions rest up to 20 hours a day, so check the shade under trees and bushes.','Males carry a mane and are much heavier. Females are sleeker, have no mane and do most of the hunting.','Anywhere, but the open plains around Satara and the Sabie and Crocodile rivers in the south are reliable.');
+add('leopard','Leopard','Panthera pardus','big5 pred','q',{...CAT,c:'#d9a85a',b:'#f2e1bd',pat:'rose',pc:'#2a1d12',bw:64,L:24},{},{s:.82},'Secretive and mostly active at night. Leopards often drag kills up trees to keep them from lions and hyenas.','Same rosette pattern in both. Males are clearly bigger, with a heavy head and thick neck.','Scan large trees and riverbanks at dawn and dusk. The Sabie River road between Skukuza and Lower Sabie is famous for them.');
+add('elephant','African elephant','Loxodonta africana','big5','q',{bw:92,bh:54,L:38,lt:16,nl:4,na:-30,nw:40,nw2:36,hs:36,hh:34,ha:30,c:'#8f8a86',ear:0,eEar:1,trunk:1,trL:46,tail:'thin',tl:30,tuft:1,z:.86},{tk:22},{tk:14,s:.84},'The largest land animal on earth. Family herds are led by an old matriarch; adult bulls roam alone or in small bachelor groups.','Bulls are far bigger, with a rounded forehead and thick tusks. Cows have an angular forehead and slimmer tusks.','Common across the park, especially the mopane veld in the north. Give bulls with streaming temple glands (musth) lots of space.');
+add('buffalo','Cape buffalo','Syncerus caffer','big5 hoof','q',{bw:86,bh:40,L:30,lt:9,nl:10,na:-10,nw:24,nw2:18,hs:26,hh:18,ha:25,c:'#2c2724',ear:8,tail:'thin',tl:30,tuft:1,horn:'buff',hc:'#1a1715',hw:6,hoof:1},{hl:1.2,boss:1},{hl:.85,hw:4,s:.9,c:'#3b322c'},'Herds of hundreds move between grazing and water. Old lone bulls are called “dagga boys” after the mud they wallow in.','Bulls have a massive fused horn base (the boss). Cows have thinner horns with a gap between them.','Near water across the park; big herds often around Satara, Lower Sabie and in the north.');
+add('wrhino','White rhino','Ceratotherium simum','big5 hoof','q',{bw:96,bh:44,L:22,lt:12,nl:8,na:10,nw:30,nw2:26,hs:36,hh:20,ha:35,c:'#8d8a85',ear:8,tail:'thin',tl:20,tuft:1,nh:22,hump:6,hoof:1},{},{s:.88,nh:28},'A grazer with a wide, square lip. Heavily poached, so every sighting is special.','Bulls are bigger with a thicker front horn. Cows often have longer, slimmer horns; their calf usually walks in front.','Southern grasslands around Pretoriuskop, Skukuza, Lower Sabie and Crocodile Bridge. Don’t post rhino locations online.');
+add('brhino','Black rhino','Diceros bicornis','big5 hoof','q',{bw:84,bh:40,L:24,lt:11,nl:8,na:-5,nw:28,nw2:22,hs:28,hh:18,ha:10,c:'#5f5c58',ear:7,tail:'thin',tl:20,tuft:1,nh:20,hump:3,hoof:1},{},{s:.94},'A smaller browser with a pointed, hooked lip. Shy, easily startled and genuinely rare.','Sexes look alike; bulls are a little heavier. Calves follow behind their mother.','Dense thornbush in the south; early morning drives give the best chance.');
+// Predators
+add('cheetah','Cheetah','Acinonyx jubatus','pred','q',{...CAT,c:'#dcb06c',b:'#f3e4c4',pat:'spots',pc:'#1e1810',L:34,bw:66,bh:22,hs:16,hh:12},{},{s:.92},'The fastest land animal, built for short sprints over open ground. Hunts by day.','Sexes look alike; males are slightly larger and often live in coalitions of brothers.','Open plains around Lower Sabie, Crocodile Bridge and Satara.');
+add('wilddog','African wild dog','Lycaon pictus','pred','q',{...DOG,c:'#8a5a2b',pat:'blotch',ear:9,earR:1,tc:'#f4efe4'},{},{s:.95},'“Painted wolves”: endangered pack hunters and some of Africa’s most successful hunters. Every coat pattern is unique.','Sexes look alike. Usually only the dominant pair in a pack breeds.','Unpredictable as packs cover huge distances. The south around Skukuza and Pretoriuskop is your best bet.');
+add('hyena','Spotted hyena','Crocuta crocuta','pred ugly5','q',{...DOG,bw:66,bh:30,L:30,c:'#b39a72',pat:'hspots',pc:'#3d3226',na:-30,hs:24,hh:15,ear:6,earR:1,tail:'short',tc:'#2a2218',hump:5},{s:.94},{},'Skilled hunters as well as scavengers, living in clans. Their whooping call carries for kilometres at night.','Females are larger than males and run the clan, which is unusual for mammals.','Dens are often in culverts under tar roads; look early in the morning near Satara and Lower Sabie.');
+add('bbjackal','Black-backed jackal','Lupulella mesomelas','pred','q',{...DOG,bw:50,bh:18,L:28,c:'#c08a4e',pat:'saddle',pc:'#3a3633',ear:8},{},{s:.93},'A small, adaptable dog with a silver-black saddle. Often hangs around lion and hyena kills for scraps.','Sexes look alike. Pairs usually stay together for life.','Open grassland, especially around Satara.');
+add('ssjackal','Side-striped jackal','Lupulella adusta','pred','q',{...DOG,bw:50,bh:18,L:28,c:'#9c8f7c',pat:'line',ear:7,tc:'#f4f2ec'},{},{s:.93},'A shyer, greyer jackal with a pale stripe on each flank and a white tail tip. Mostly out at night.','Sexes look alike.','Wetter, wooded areas in the north and around Pretoriuskop.');
+add('caracal','Caracal','Caracal caracal','pred','q',{...CAT,bw:52,bh:22,L:26,c:'#c4874f',b:'#ecd3ad',tail:'short',ear:8,earR:0,tc:'#c4874f'},{},{s:.85},'A lynx-like cat with long black ear tufts. It can leap to swat birds out of the air.','Sexes look alike; males are bigger.','Rarely seen. Dry, open country early in the morning or late afternoon.');
+add('serval','Serval','Leptailurus serval','pred','q',{...CAT,bw:52,bh:20,L:32,c:'#d8b06a',b:'#f1e2c4',pat:'spots',ear:9,tail:'thin',tl:18,tw:3.4,tc:'#1e1810',tuft:1},{},{s:.88},'Long-legged spotted cat with huge ears for hearing rodents in tall grass.','Sexes look alike; males are larger.','Long grass and marshy vleis. Night drives are your best chance.');
+add('civet','African civet','Civettictis civetta','pred','q',{bw:60,bh:22,L:16,lt:6,c:'#cfc6b2',pat:'spots',pc:'#1f1b16',tail:'bushy',tc:'#1f1b16',tw:6,tl:26,hs:22,hh:12,ear:5,earR:1,nl:10,na:-20,nw:14,nw2:10,ha:12,mask:'#1f1b16'},{},{s:.92},'A nocturnal, raccoon-masked hunter of insects, fruit and small animals. Uses shared dung “latrines”.','Sexes look alike.','Night drives, along roads and riverbanks.');
+add('genet','Large-spotted genet','Genetta maculata','pred','q',{bw:58,bh:16,L:14,lt:5,c:'#d8cfbd',pat:'spots',pc:'#4a3a2a',tail:'cat',tl:40,tw:4,tc:'#2a2218',hs:18,hh:10,ear:6,earR:1,nl:8,na:-15,nw:11,nw2:8,ha:10},{},{s:.92},'Slender, cat-like climber with a long ringed tail. Often prowls rest camps after dark.','Sexes look alike.','Trees and roofs in rest camps at night.');
+add('hbadger','Honey badger','Mellivora capensis','pred small','q',{bw:56,bh:24,L:14,lt:7,c:'#1c1a18',pat:'saddle',pc:'#c9c6bd',nl:8,na:-10,nw:16,nw2:12,hs:20,hh:13,ha:15,ear:2,earR:1,tail:'short',tc:'#1c1a18'},{},{s:.8},'Fearless and thick-skinned. Will face down lions and digs out snakes, scorpions and bee nests.','Males are considerably bigger than females.','Rare by day. Night drives, or raiding camp bins after dark.');
+add('bmongoose','Banded mongoose','Mungos mungo','pred small','q',{bw:46,bh:16,L:12,lt:5,c:'#7d6f5c',pat:'bands',pc:'#3a322a',nl:8,na:-15,nw:11,nw2:8,hs:16,hh:9,ha:12,ear:3,earR:1,tail:'thin',tl:26,tw:5},{},{s:.95},'Noisy troops of 10 to 40 forage together, chattering constantly to keep in touch.','Sexes look alike.','Common in the south, often around termite mounds.',1.25);
+add('dmongoose','Dwarf mongoose','Helogale parvula','pred small','q',{bw:40,bh:15,L:11,lt:5,c:'#6b4f39',nl:7,na:-20,nw:10,nw2:7,hs:15,hh:9,ha:12,ear:3,earR:1,tail:'thin',tl:22,tw:4.5},{},{s:.95},'Africa’s smallest carnivore. Families live in termite mounds and post a lookout on top.','Sexes look alike.','Termite mounds and dead logs, especially around Skukuza.',1.45);
+// Primates
+add('baboon','Chacma baboon','Papio ursinus','prim','a',{c:'#8a7a5d',fc:'#4a3d35',mz:'#4f433c',mzL:1.5,tail:'bent'},{mantle:1},{s:.76},'Big, clever troop monkeys. Never feed them: fed baboons become dangerous and often have to be put down.','Males can be twice the size of females, with a heavy mane and long canines.','Everywhere, often on roads in the morning. Keep car windows up.');
+add('vervet','Vervet monkey','Chlorocebus pygerythrus','prim','a',{c:'#9c9a88',fc:'#1e1d1b',mz:'#2a2826',mzL:.5,brow:'#efede4',tail:'long'},{},{s:.84},'Small grey monkey with a black face, famous for raiding picnic sites.','Males are bigger and have bright blue skin on the lower belly.','Rest camps, picnic spots and trees along rivers.');
+add('samango','Samango monkey','Cercopithecus albogularis','prim','a',{c:'#555850',fc:'#2b2b2b',mz:'#2b2b2b',mzL:.5,tail:'long',cheek:'#d8d8d2'},{},{s:.8},'A darker, shy forest monkey with a white throat. Rare in Kruger.','Males are noticeably larger.','Riverine forest in the far north, around Pafuri and Punda Maria.');
+add('bushbaby','Thick-tailed bushbaby','Otolemur crassicaudatus','prim small','a',{c:'#9c9187',fc:'#b3a89a',mz:'#9c9187',mzL:.4,tail:'bushy',bigEye:1,earBig:1,hr:11},{},{s:.92},'Big-eyed nocturnal primate whose call sounds like a crying baby.','Sexes look alike; males slightly larger.','Camp trees at night. Shine a torch and look for glowing eyes.');
+// Hooved
+add('giraffe','Giraffe','Giraffa camelopardalis','hoof','q',{bw:60,bh:30,L:56,lt:5,nl:56,na:-72,nw:12,nw2:7,hs:22,hh:10,ha:40,c:'#f0dcb2',pat:'patch',pc:'#8b4a22',ear:6,horn:'oss',hc:'#6b4a2a',hw:3,tail:'thin',tl:30,tuft:1,tc:'#222',hoof:1,crest:'#8b4a22'},{c:'#e6cfa0',pc:'#5c2f15'},{s:.88,ossTuft:1},'The tallest animal on earth, browsing acacia tops other animals can’t reach.','Bulls are taller and darker, with bald, thick horns (ossicones). Cows keep tufts of hair on top.','Common in the acacia veld of the south and centre, e.g. between Satara and Lower Sabie.',.74);
+add('zebra','Plains zebra','Equus quagga','hoof','q',{...ANT,bw:70,bh:32,L:38,lt:7,nl:22,na:-50,nw:18,nw2:11,hs:24,hh:12,ha:35,c:'#f3f1ea',muz:'#2a2a2a',pat:'zebra',pc:'#1b1b1b',crest:'#1b1b1b',ear:7,tail:'thin',tl:26,tuft:1,tc:'#1b1b1b',lstr:1},{},{s:.95},'Kruger’s zebra have faint brown “shadow stripes” between the black ones. No two patterns are the same.','Sexes look alike; stallions are slightly bigger with a thicker neck.','Open grassland, often mixed with wildebeest, especially around Satara.');
+add('wildebeest','Blue wildebeest','Connochaetes taurinus','hoof ugly5','q',{...ANT,bw:76,bh:34,L:40,lt:6,c:'#5f6266',hump:8,nw:18,nw2:12,hs:26,hh:13,crest:'#1d1d1d',beard:'#1d1d1d',pat:'thin',pc:'#3a3c3f',horn:'cow',hl:1,tail:'thin',tl:28,tuft:1,tc:'#1d1d1d'},{},{s:.9,hl:.8},'Shaggy, clown-like grazers that often buck and run in circles. One of the Ugly 5.','Both sexes have horns. Bulls are heavier, darker and have thicker horns.','Open plains near water, around Satara and Lower Sabie.');
+add('impala','Impala','Aepyceros melampus','hoof','q',{...ANT,c:'#b9733f',b:'#f4ece0',pat:'side'},{horn:'lyre',hl:1.1},{s:.92},'Kruger’s most common antelope, nicknamed “McDonald’s” for the black M on its rump. Lambs are born in November and December.','Rams have lyre-shaped horns. Ewes are hornless.','Everywhere, especially in the south.');
+add('kudu','Greater kudu','Tragelaphus strepsiceros','hoof','q',{...ANT,bw:74,bh:32,L:46,c:'#8f8170',pat:'thin',pn:7,ear:10,face:'#fff'},{horn:'spiral',hl:1.5,crest:'#5c5246'},{s:.85,c:'#a08a6f'},'A large, elegant antelope with thin white body stripes and big ears.','Bulls carry long spiral horns and a throat fringe. Cows are smaller, hornless and browner.','Woodland and thickets throughout the park.');
+add('nyala','Nyala','Tragelaphus angasii','hoof','q',{...ANT,bw:66,bh:30,L:40,pat:'thin'},{c:'#4d4641',lc:'#d4a646',horn:'nyala',hl:1.3,crest:'#ece7dc',fringe:1},{c:'#b5652e',s:.82,pn:10},'A shaggy antelope of dense riverside bush.','Bulls are slate-grey and shaggy, with yellow “socks” and lyre horns. Ewes are chestnut with bold white stripes and no horns.','River thickets, especially around Pafuri in the north.');
+add('bushbuck','Bushbuck','Tragelaphus sylvaticus','hoof','q',{...ANT,bw:56,bh:24,L:34,pat:'dots'},{c:'#5a3d26',horn:'straight',hl:.9},{c:'#b46a35',s:.9},'Shy, solitary antelope of river thickets, marked with white spots and stripes.','Rams are dark brown with short twisted horns. Ewes are reddish and hornless.','Riverbanks, e.g. along the Sabie River near Skukuza.');
+add('waterbuck','Waterbuck','Kobus ellipsiprymnus','hoof','q',{...ANT,bw:74,bh:34,L:42,c:'#7c6b58',pat:'rump',nw:16,nw2:11,ear:9},{horn:'ring',hl:1.2},{s:.88},'A shaggy antelope with a white ring on its rump, never far from water.','Only bulls have horns, long and curving forward.','Rivers and dams throughout the park.');
+add('sable','Sable antelope','Hippotragus niger','hoof','q',{...ANT,bw:72,bh:32,L:44,b:'#f2efe8',crest:'#222',face:'#fff',horn:'curve'},{c:'#1d1a19',hl:1.3},{c:'#6b3f22',hl:.9,s:.92},'A striking antelope with sweeping scimitar horns. Uncommon in Kruger.','Bulls are glossy black with long horns. Cows are chestnut-brown with shorter horns.','Around Pretoriuskop in the south and the northern woodland.');
+add('roan','Roan antelope','Hippotragus equinus','hoof','q',{...ANT,bw:74,bh:34,L:46,c:'#a9917c',crest:'#5a4a3c',face:'#fff',ear:11,horn:'curve',hl:.7},{},{s:.94,hl:.6},'One of Africa’s biggest antelope, with a black-and-white face and tufted ears. Very rare in Kruger.','Both sexes are horned; bulls are bigger with heavier horns.','Northern grasslands — a very lucky sighting.');
+add('eland','Common eland','Taurotragus oryx','hoof','q',{...ANT,bw:84,bh:40,L:44,c:'#c4a47c',pat:'thin',pn:6,hump:6,horn:'twist',dew:'#8a6f52'},{c:'#9e9384',hl:.9,hw:4},{s:.82,hl:1.2,dew:null},'The world’s largest antelope. Despite its bulk it can clear a 2 m fence.','Bulls are heavier and greyer, with a big dewlap and thick horns. Cows have thinner, longer horns.','The north, especially around Punda Maria and Pafuri.');
+add('tsessebe','Tsessebe','Damaliscus lunatus','hoof','q',{...ANT,bw:66,bh:30,L:42,c:'#7b4e2e',lc:'#c19a4d',horn:'tsess',hl:.9,hump:4},{},{s:.94},'A fast, glossy antelope with a sloping back, among the speediest of all antelope.','Both sexes have horns; bulls are a little bigger and darker.','Open grassland in the north, around Mopani.');
+add('reedbuck','Common reedbuck','Redunca arundinum','hoof','q',{...ANT,bw:56,bh:24,L:36,c:'#c79a5c',b:'#f3ebdc'},{horn:'reed'},{s:.94},'A grassland antelope that gives a shrill whistle when alarmed.','Rams have short horns hooked forward. Ewes are hornless.','Tall grass near water in the south.');
+add('klipspringer','Klipspringer','Oreotragus oreotragus','hoof','q',{...ANT,bw:40,bh:22,L:24,c:'#8e7a5b',nl:14,ear:7,tail:'none'},{horn:'short',hl:1.5,hw:3},{},'The little “rock jumper” balances on the tips of its hooves on boulders.','Rams have short spike horns; in Kruger ewes are usually hornless.','Rocky koppies, e.g. around Berg-en-Dal and Olifants.',1.3);
+add('steenbok','Steenbok','Raphicerus campestris','hoof','q',{...ANT,bw:40,bh:18,L:28,c:'#c27b3e',b:'#f3ebdc',ear:10,tail:'none'},{horn:'straight',hl:.8,hw:2.6},{},'A tiny reddish antelope with huge ears, usually seen alone.','Rams have short straight horns. Ewes are hornless.','Open woodland beside the road.',1.35);
+add('duiker','Common duiker','Sylvicapra grimmia','hoof','q',{...ANT,bw:42,bh:20,L:26,c:'#9a8566',ear:7,tail:'short'},{horn:'short',hl:1.5,hw:3},{s:1.03},'A small grey antelope that dives into cover when disturbed — “duiker” is Afrikaans for diver.','Rams have short spike horns. Ewes are usually hornless and slightly larger.','Bushy areas, often early in the morning.',1.3);
+add('grysbok','Sharpe’s grysbok','Raphicerus sharpei','hoof','q',{...ANT,bw:38,bh:18,L:24,c:'#a5552e',pat:'dots',tail:'none',ear:8},{horn:'short',hl:1.3,hw:3},{},'A tiny, shy, nocturnal antelope with a white-flecked coat.','Rams have short horns. Ewes are hornless.','Rocky, bushy hills, mostly on night drives.',1.35);
+add('hippo','Hippopotamus','Hippopotamus amphibius','hoof','q',{bw:96,bh:42,L:16,lt:12,nl:6,na:-5,nw:30,nw2:26,hs:34,hh:22,ha:10,c:'#7b6a6a',b:'#c9a29a',ear:4,earR:1,tail:'short'},{},{s:.85},'Spends the day in water and walks out at night to graze. One of Africa’s most dangerous animals.','Bulls are bigger with heavier jaws and fight with huge canine teeth.','Rivers and dams: Sunset Dam at Lower Sabie and Hippo Pools near Crocodile Bridge.');
+add('warthog','Warthog','Phacochoerus africanus','hoof ugly5','q',{...PIG,c:'#5b5452',crest:'#3a3330'},{tk:8,warts:2},{tk:4,warts:1,s:.85},'Trots with its tail straight up like an aerial, and kneels to graze. One of the Ugly 5.','Boars have two pairs of facial warts and big tusks. Sows have one pair and smaller tusks.','Open areas and around camps everywhere.');
+add('bushpig','Bushpig','Potamochoerus larvatus','hoof','q',{...PIG,c:'#7a4b2a',crest:'#e8e2d6',ear:8,tail:'thin',tl:18},{tk:3},{s:.9},'A shaggy, reddish pig with a pale mane. Almost entirely nocturnal.','Boars are bigger with more prominent tusks.','Dense bush near rivers at night — rarely seen.');
+// Small mammals
+add('aardvark','Aardvark','Orycteropus afer','small','q',{bw:66,bh:30,L:18,lt:7,c:'#c3a58a',nl:8,na:-5,nw:18,nw2:12,hs:30,hh:13,ha:25,snL:1.8,ear:13,tail:'thin',tl:28,tw:7},{},{s:.95},'A nocturnal termite-eater whose burrows end up housing many other animals.','Sexes look alike.','Very rarely seen — night drives over open veld.');
+add('pangolin','Pangolin','Smutsia temminckii','small','q',{bw:62,bh:30,L:10,lt:6,c:'#8a6a45',pat:'scales',pc:'#5d4528',nl:6,na:0,nw:16,nw2:12,hs:16,hh:10,ha:30,ear:0,tail:'thin',tl:40,tw:12},{},{s:.95},'A scaly anteater and one of the most trafficked mammals in the world.','Sexes look alike.','Extremely rare — a once-in-a-lifetime sighting.');
+add('porcupine','Cape porcupine','Hystrix africaeaustralis','small','q',{bw:58,bh:28,L:12,lt:6,c:'#2a2522',pat:'quills',nl:6,na:0,nw:16,nw2:13,hs:18,hh:12,ha:15,ear:3,earR:1,tail:'none'},{},{s:.97},'Africa’s largest rodent. It rattles its quills as a warning.','Sexes look alike.','Night drives; dropped quills are often found on roads.');
+add('hare','Scrub hare','Lepus saxatilis','small','q',{bw:44,bh:22,L:16,lt:5,c:'#9b8366',b:'#e9e1d3',nl:8,na:-40,nw:12,nw2:9,hs:16,hh:11,ha:15,ear:14,tail:'short',tc:'#ffffff'},{},{s:1.05},'A long-eared hare that freezes, then bolts in zigzags.','Sexes look alike; females slightly larger.','Common on roads at dusk and on night drives.',1.2);
+add('squirrel','Tree squirrel','Paraxerus cepapi','small','q',{bw:34,bh:15,L:10,lt:4,c:'#8c7a62',tail:'sq',tl:26,tw:9,hs:12,hh:9,ha:15,ear:3,earR:1,nl:6,na:-30,nw:9,nw2:7},{},{},'Scolds snakes and birds of prey loudly — follow its alarm calls to find them.','Sexes look alike.','Mopane woodland and camp trees.',1.5);
+add('hyrax','Rock hyrax (dassie)','Procavia capensis','small','q',{bw:44,bh:24,L:8,lt:5,c:'#7c6a55',nl:4,na:-10,nw:16,nw2:14,hs:15,hh:12,ha:10,ear:3,earR:1,tail:'none'},{},{s:.9},'Rabbit-sized, yet its closest living relatives are elephants and dugongs.','Males are larger than females.','Rocky koppies, sunning themselves in the morning.',1.4);
+add('eshrew','Elephant shrew','Elephantulus myurus','small little5','q',{bw:28,bh:14,L:10,lt:3,c:'#a08561',hs:16,hh:8,ha:12,snL:1.8,ear:4,earR:1,tail:'thin',tl:20,tw:1.6,nl:5,na:-20,nw:9,nw2:7,er:'#f4efe4'},{},{},'One of the Little 5. A tiny insect-eater with a twitching, trunk-like nose.','Sexes look alike.','Rocky ground and leaf litter — quick and hard to spot.',1.6);
+// Reptiles
+add('croc','Nile crocodile','Crocodylus niloticus','rep pred','croc',{c:'#5d5e3a'},{},{s:.75},'Can grow beyond 5 m. Waits motionless to ambush animals coming to drink.','Males are much bigger than females.','Basking on sandbanks: Lake Panic, Sunset Dam and the Crocodile Bridge area.');
+add('monitor','Water monitor','Varanus niloticus','rep','liz',{c:'#4b4a3a',pc:'#c9b46a'},{},{s:.92},'Africa’s largest lizard, a strong swimmer that raids crocodile nests for eggs.','Sexes look alike.','Riverbanks and dams.');
+add('tortoise','Leopard tortoise','Stigmochelys pardalis','rep little5','tort',{c:'#d9c28a',pc:'#3a2c1c'},{tl:8},{s:1.1},'One of the Little 5 and the largest tortoise in southern Africa, with a tall, spotted shell.','Males have a longer tail and a dished-in belly shell. Females are usually larger.','Crossing roads after rain — drive slowly.');
+add('python','African rock python','Python sebae natalensis','rep','snake',{c:'#8a7350',pc:'#4a3a28',w:12},{},{w:13.5},'Africa’s largest snake. It kills by constriction, not venom.','Females are larger and heavier than males.','Near water and rocky outcrops; rarely seen.');
+add('mamba','Black mamba','Dendroaspis polylepis','rep','snake',{c:'#6e6a5e',w:7,ink:1},{},{},'A fast, highly venomous snake named for the inky-black inside of its mouth; the body is grey-brown.','Sexes look alike.','Termite mounds and rocky areas. Watch only from the car.');
+add('chameleon','Flap-necked chameleon','Chamaeleo dilepis','rep','cham',{c:'#7fae4a'},{},{s:1.1},'Changes colour to signal mood and swivels each eye independently.','Females are slightly larger than males.','Night drives — they show up pale in a spotlight.');
+// Insects
+add('antlion','Antlion','Myrmeleontidae','bug little5','antlion',{},{},{},'One of the Little 5. The larva digs a cone-shaped pit in sand to trap ants; the adult looks like a delicate damselfly.','Sexes look alike.','Small cone pits in dry sand under overhangs, often in rest camps.');
+add('rbeetle','Rhinoceros beetle','Dynastinae','bug little5','beetle',{c:'#3a2418'},{horn:1},{},'One of the Little 5. A big, heavy beetle; males fight with their rhino-like horn.','Males carry a long horn; females have only a small bump or none.','Drawn to camp lights on summer nights.');
+add('dbeetle','Dung beetle','Scarabaeinae','bug','beetle',{c:'#1d1a17',ball:1},{horn:.4},{},'Rolls balls of dung to bury and lay eggs in. They have right of way on Kruger’s roads.','In many species males have horns on the head; females don’t.','Fresh elephant dung after rain. Please don’t drive over them.');
+// Birds
+add('ostrich','Common ostrich','Struthio camelus','bird','b',{c:'#1c1a1a',w:'#1c1a1a',wp:'#f6f4ef',h:'#bfb3a6',nc:'#d4b3a8',bk:'#d9c4a0',bl:10,bd:4,ll:56,lw:5,lc:'#d9a99a',bw:56,bh:34,tilt:-8,nl:40,nw:5,hr:6,tail:8,tc:'#f6f4ef'},{},{c:'#7a6e60',w:'#7a6e60',wp:'#b7ab9a',tc:'#b7ab9a',nc:'#9b8f84',lc:'#9b8f84',s:.92},'The world’s largest bird. It can’t fly but runs at about 70 km/h.','Males are black and white. Females are grey-brown.','Uncommon in Kruger — open plains in the east, e.g. around Satara.',.72);
+add('ghornbill','Southern ground hornbill','Bucorvus leadbeateri','bird','b',{c:'#151414',w:'#151414',bk:'#151414',bl:22,bd:8,bc:6,casque:1,ll:26,lc:'#222',bw:52,bh:30,tilt:-15,nl:12,nw:10,hr:9,face:'#d63a2a',tail:14},{thr:'#d63a2a'},{thr:'#5c4bb0'},'A turkey-sized, endangered bird that walks the veld in groups. Their deep booming carries at dawn.','Females have a violet-blue patch on the red throat. Males’ throats are all red.','Open woodland, walking on the ground.');
+add('kori','Kori bustard','Ardeotis kori','bird','b',{c:'#8b7a5f',w:'#a28d6a',h:'#9d9a92',nc:'#c9c4b8',bk:'#b8a57f',bl:12,bd:4,ll:32,lc:'#d8cb9a',bw:54,bh:30,tilt:-10,nl:22,nw:9,hr:7,crest:'bar',cc:'#2a2a2a',tail:14,belly:'#ece6d8'},{},{s:.75},'One of the heaviest flying birds in the world.','Males are much larger and display by puffing out their white neck feathers.','Open grassland around Satara and the eastern plains.');
+add('secretary','Secretarybird','Sagittarius serpentarius','bird raptor','b',{c:'#c9c9c6',w:'#2a2a2a',bk:'#8a8a86',bl:9,bd:5,bc:3,ll:46,lc:'#e8c9a0',lw:3,thighs:'#1d1d1d',bw:46,bh:26,tilt:-15,nl:16,nw:7,hr:8,face:'#f08a2a',crest:'quills',cc:'#1d1d1d',tail:30,tc:'#3a3a3a'},{},{s:.95},'A long-legged eagle that hunts on foot and stamps snakes to death.','Sexes look alike.','Open grassland, striding through the grass.',.85);
+add('martial','Martial eagle','Polemaetus bellicosus','bird raptor','b',{c:'#5a5048',belly:'#f2ede4',bspots:'#5a5048',bk:'#2a2a2a',bl:9,bd:6,bc:5,ll:16,lc:'#e9d47a',bw:44,bh:34,tilt:-45,nl:4,nw:12,hr:10,eye:'#f2d23a',tail:14,crest:'bar',cc:'#3a332e'},{s:.88},{},'Africa’s largest eagle, powerful enough to take small antelope.','Females are bigger than males.','Perched on tall trees, scanning the ground.');
+add('fisheagle','African fish eagle','Haliaeetus vocifer','bird raptor','b',{c:'#7a3d22',w:'#1d1a18',h:'#ffffff',nc:'#ffffff',bk:'#e9c43a',bl:9,bd:6,bc:5,face:'#e9c43a',ll:14,lc:'#e9c43a',bw:42,bh:32,tilt:-45,nl:6,nw:14,hr:10,tail:12,tc:'#ffffff'},{s:.88},{},'Its ringing call is known as “the voice of Africa”.','Females are bigger than males.','Rivers and dams, perched on dead trees over water.');
+add('bateleur','Bateleur','Terathopius ecaudatus','bird raptor','b',{c:'#1a1a1a',w:'#1a1a1a',back:'#8a4a2c',face:'#e0372a',bk:'#e9b03a',bl:8,bd:6,bc:4,ll:14,lc:'#e0372a',bw:44,bh:30,tilt:-30,nl:4,nw:14,hr:11,tail:4},{},{wp:'#b8b8b3'},'A near-tailless eagle that rocks from side to side as it glides. Its name means “tightrope walker”.','Males show a black panel on the folded wing; females have a grey wing panel.','Soaring overhead almost everywhere.');
+add('lappet','Lappet-faced vulture','Torgos tracheliotos','bird raptor ugly5','b',{c:'#3e3631',w:'#3e3631',belly:'#e6e0d4',h:'#d9707a',nc:'#d9707a',ruff:'#5a4e46',bk:'#d8cfa8',bl:12,bd:8,bc:6,ll:20,lc:'#a9a39a',bw:50,bh:34,tilt:-25,nl:10,nw:6,hr:9,tail:10},{},{s:1.04},'Africa’s largest vulture, with a bare pink head. Stands in for “vulture” in the Ugly 5.','Sexes look alike; females slightly larger.','At kills and carcasses, or perched on treetops.');
+add('wbvulture','White-backed vulture','Gyps africanus','bird raptor','b',{c:'#8a7a66',w:'#5c4f42',h:'#3d3a3a',nc:'#3d3a3a',ruff:'#f0ece4',bk:'#2a2a2a',bl:10,bd:6,bc:5,ll:20,lc:'#6b6660',bw:48,bh:32,tilt:-25,nl:10,nw:6,hr:8,tail:10},{},{},'The most common vulture in Kruger, yet critically endangered.','Sexes look alike.','Gathering at carcasses and circling on warm air.');
+add('marabou','Marabou stork','Leptoptilos crumenifer','bird ugly5','b',{c:'#3a3d42',w:'#3a3d42',belly:'#f2f0eb',h:'#e6a8a0',nc:'#e6a8a0',pouch:'#e88a80',bk:'#d8cdb0',bl:30,bd:8,ll:44,lc:'#c9c3bb',bw:48,bh:30,tilt:-20,nl:10,nw:6,hr:7},{},{s:.92},'A bald-headed stork with a dangling pink throat pouch. One of the Ugly 5.','Sexes look alike; males slightly larger.','At carcasses and drying pans.',.82);
+add('saddlebill','Saddle-billed stork','Ephippiorhynchus senegalensis','bird','b',{c:'#f5f5f2',w:'#111111',h:'#111111',nc:'#111111',bk:'#d6322a',bl:34,bd:5,bc:-3,band:'#111111',saddle:'#f2c22a',ll:52,lc:'#2a2a2a',bw:44,bh:26,tilt:-10,nl:32,nw:5,hr:6},{eye:'#3a2a1a',wat:'#f2c22a'},{eye:'#f2c22a'},'The tallest stork, with a red, black and yellow bill.','Males have dark eyes and small yellow wattles. Females have yellow eyes and no wattles.','Rivers, dams and pans.',.72);
+add('roller','Lilac-breasted roller','Coracias caudatus','bird','b',{...SMB,c:'#5aa3c8',w:'#2f6fa8',h:'#7ab84a',back:'#b08a55',thr:'#b07ad0',bk:'#222',bl:10,bd:4,tail:24,tc:'#2f6fa8'},{},{},'A dazzling bird that tumbles and rolls in its display flight.','Sexes look alike.','Dead branches beside the road.');
+add('ybhornbill','Southern yellow-billed hornbill','Tockus leucomelas','bird','b',{...SMB,c:'#2a2826',w:'#2a2826',wspots:'#f2f0eb',belly:'#f2f0eb',h:'#f2f0eb',nc:'#f2f0eb',bk:'#f0c22e',bl:22,bd:7,bc:6,nl:4,nw:10,hr:8,tail:24,face:'#e8a1a1',z:1.2},{bl:24,bd:8,casque:1},{bl:19,bd:6},'The “flying banana”. Females seal themselves into a tree hole to nest.','Males have a bigger bill with a larger casque.','Rest camps and picnic sites.');
+add('rbhornbill','Red-billed hornbill','Tockus rufirostris','bird','b',{...SMB,c:'#4a4844',w:'#4a4844',wspots:'#f2f0eb',belly:'#f2f0eb',h:'#e8e6e0',nc:'#e8e6e0',bk:'#c8322a',bl:20,bd:6,bc:5,nl:4,nw:10,hr:8,tail:24,z:1.2},{lowBlack:1},{},'A slimmer hornbill with a curved red bill. Often feeds on the ground.','Males have a black patch at the base of the lower bill.','Open, dry woodland in the south and centre.');
+add('guineafowl','Helmeted guineafowl','Numida meleagris','bird','b',{c:'#2c3440',bspots:'#e9ecef',w:'#2c3440',wspots:'#e9ecef',h:'#4a8fc4',helmet:'#a8683a',wat:'#c8322a',bk:'#c9b48a',bl:6,bd:4,ll:16,lc:'#555',bw:46,bh:30,tilt:0,nl:8,nw:6,hr:6,tail:6,nc:'#4a8fc4'},{},{},'Noisy flocks of polka-dotted birds that scratch along roadsides.','Sexes look alike.','Everywhere, roadsides and camps.',1.1);
+add('oxpecker','Red-billed oxpecker','Buphagus erythrorynchus','bird','b',{...SMB,c:'#7a5e44',belly:'#d9c39a',bk:'#d0302a',bl:9,bd:4,eye:'#e9c43a',er:'#e9c43a'},{},{},'Rides on buffalo, giraffe and rhino, eating ticks and flies.','Sexes look alike.','Look on the backs of large mammals.',1.4);
+add('bweaver','Red-billed buffalo weaver','Bubalornis niger','bird little5','b',{...SMB,bl:10,bd:6,tail:16,wp:'#f2f0eb'},{c:'#151515',bk:'#c8322a'},{c:'#4a3a30',bk:'#b0503a'},'One of the Little 5. Builds big, untidy communal nests of thorny twigs.','Males are black with a red bill. Females are browner.','Large trees near water in the north and centre.');
+add('starling','Cape glossy starling','Lamprotornis nitens','bird','b',{...SMB,c:'#2a5aa8',w:'#2e6e9a',bk:'#111',eye:'#f2a52a',bl:9,bd:3,tail:16},{},{},'A shimmering blue-green starling that cheekily visits picnic tables.','Sexes look alike.','Rest camps and picnic sites.');
+add('carmine','Southern carmine bee-eater','Merops nubicoides','bird','b',{...SMB,c:'#d23a5a',w:'#c84a4a',h:'#d23a5a',cap:'#2f8fb5',mask:'#111',bk:'#111',bl:16,bd:2.5,bc:2,tail:34,tc:'#c8323f'},{},{},'A brilliant carmine summer visitor, here from about September to April.','Sexes look alike.','Rivers in the north such as Pafuri and Shingwedzi; they follow fires and game for insects.',1.3);
+add('lbeeater','Little bee-eater','Merops pusillus','bird','b',{...SMB,c:'#3e9a3a',w:'#3e9a3a',belly:'#e0a23a',thr:'#f2d23a',mask:'#111',bk:'#111',bl:11,bd:2,bc:1.5,tail:16,hr:6},{},{},'A tiny green bee-eater that hawks insects from low perches.','Sexes look alike.','Low branches at the edge of grass and rivers.',1.5);
+add('pkingfisher','Pied kingfisher','Ceryle rudis','bird','b',{...SMB,c:'#f5f5f2',w:'#1a1a1a',wspots:'#f5f5f2',h:'#1a1a1a',belly:'#f5f5f2',crest:'tuft',cc:'#1a1a1a',bk:'#111',bl:18,bd:4,wr:.62,tilt:-15},{bands:2},{bands:1},'Hovers above water before plunging in for fish.','Males have two black breast bands. Females have one, broken in the middle.','Rivers and dams.');
+add('wkingfisher','Woodland kingfisher','Halcyon senegalensis','bird','b',{...SMB,c:'#4aa3d8',w:'#3a8fc8',belly:'#f2f2ef',h:'#9fc9df',mask:'#111',bk:'#d23a2a',bl:16,bd:5,lowBlack:1},{},{},'A summer migrant with a loud trilling call. It hunts insects, not fish.','Sexes look alike.','Woodland, in summer only.');
+add('goliath','Goliath heron','Ardea goliath','bird','b',{c:'#7a7f88',w:'#7a7f88',h:'#a8562e',nc:'#a8562e',belly:'#a8562e',bk:'#3a3a3a',bl:30,bd:4,ll:52,lc:'#333',bw:42,bh:24,tilt:-25,nl:40,nw:6,hr:6,crest:'tuft',cc:'#a8562e'},{},{},'The world’s largest heron, standing patiently in the shallows for fish.','Sexes look alike.','River edges and dams.',.72);
+add('hamerkop','Hamerkop','Scopus umbretta','bird','b',{c:'#7a5a3a',crest:'hammer',bk:'#2a2a2a',bl:14,bd:5,ll:22,lc:'#2a2a2a',bw:36,bh:24,tilt:-15,nl:8,nw:8,hr:8},{},{},'A hammer-headed waterbird that builds enormous domed nests.','Sexes look alike.','Shallow water at rivers and dams.',1.1);
+add('eagleowl','Verreaux’s eagle-owl','Bubo lacteus','bird raptor','b',{owl:1,c:'#b8b2a8',w:'#a39c91',h:'#c9c3b8',eye:'#2a1a10',lid:'#f2a0b0'},{s:.9},{},'Africa’s largest owl, unmistakable with its pink eyelids.','Females are bigger than males.','Big trees along rivers; sometimes in camps at night.');
+add('pelsowl','Pel’s fishing owl','Scotopelia peli','bird raptor','b',{owl:1,c:'#c47a2e',w:'#b06a25',h:'#d08a40',eye:'#1a1010',noTufts:1},{},{},'A rare ginger owl that snatches fish from the water. A top target for birders.','Sexes look alike.','Riverine forest at Pafuri, and along the larger rivers.');
+add('goaway','Grey go-away-bird','Corythaixoides concolor','bird','b',{...SMB,c:'#a8a7a2',crest:'tuft',cc:'#a8a7a2',bk:'#222',bl:8,bd:5,tail:30,hr:7,z:1.2},{},{},'Named for its nasal “go-waaay” call, often given as an alarm.','Sexes look alike.','Dry woodland and rest camps.');
+
+const SC={impala:[99,98,90,85,99],elephant:[95,95,97,90,95],zebra:[92,95,75,55,90],buffalo:[85,88,85,70,85],giraffe:[88,92,35,15,85],wildebeest:[85,92,60,35,80],kudu:[88,85,80,70,85],warthog:[90,88,75,65,90],baboon:[92,85,85,85,88],vervet:[92,88,85,85,85],hippo:[90,85,85,80,75],croc:[85,80,80,80,60],waterbuck:[75,80,80,75,70],guineafowl:[95,95,90,90,95],ybhornbill:[95,95,90,85,95],starling:[95,95,92,90,92],roller:[90,95,90,85,92],oxpecker:[80,85,75,65,85],fisheagle:[80,80,80,80,65],wbvulture:[75,85,70,60,80],bateleur:[75,85,80,75,80],rbhornbill:[70,85,85,75,70],squirrel:[85,80,85,80,85],goaway:[80,85,85,85,85],lbeeater:[75,75,75,75,75],lion:[75,80,25,15,90],hyena:[65,65,40,30,80],steenbok:[70,75,65,55,70],bmongoose:[60,55,55,55,65],dmongoose:[55,45,40,40,60],duiker:[50,40,45,45,55],monitor:[45,40,40,40,40],pkingfisher:[70,65,70,65,50],wkingfisher:[60,60,60,65,60],bweaver:[40,60,75,75,50],hamerkop:[60,55,55,55,50],dbeetle:[60,60,60,60,65],carmine:[25,35,55,70,30],bbjackal:[45,65,40,30,55],wrhino:[45,15,3,2,55],nyala:[25,10,15,80,25],bushbuck:[45,30,35,50,40],marabou:[35,45,50,45,40],saddlebill:[40,45,45,40,35],tortoise:[40,40,40,40,35],klipspringer:[45,45,40,50,25],leopard:[40,30,15,15,85],hare:[30,30,25,25,60],hyrax:[30,40,35,40,15],ghornbill:[25,30,35,40,30],kori:[15,40,30,15,20],lappet:[30,40,35,25,40],goliath:[30,30,40,40,25],antlion:[50,50,50,50,50],reedbuck:[25,20,25,20,15],martial:[20,25,25,20,25],cheetah:[15,20,5,3,15],secretary:[10,20,15,10,15],genet:[35,35,30,30,60],eagleowl:[20,20,20,20,30],bushbaby:[35,30,25,30,55],rbeetle:[25,25,25,25,25],wilddog:[15,10,8,5,20],brhino:[5,2,1,0,8],sable:[8,4,5,2,3],eland:[2,5,10,25,2],ostrich:[1,4,6,2,1],tsessebe:[0,1,8,6,1],roan:[0,0,3,3,0],hbadger:[4,4,4,4,12],ssjackal:[4,2,4,8,4],samango:[0,0,0,20,0],caracal:[2,3,3,3,4],serval:[2,3,2,2,8],civet:[4,4,4,4,25],grysbok:[2,2,3,6,4],bushpig:[1,1,2,5,3],porcupine:[3,3,3,3,12],eshrew:[5,5,5,8,5],chameleon:[4,4,4,4,20],python:[2,2,2,4,3],mamba:[3,3,3,3,5],aardvark:[1,1,1,1,4],pelsowl:[0,2,1,12,1],pangolin:[0,0,0,0,1]};
+const REG={S:'Southern Kruger',C:'Central Kruger',N:'Northern Kruger',F:'Far North',P:'Private reserve',X:'Several areas'},RI={S:0,C:1,N:2,F:3,P:4};
+const PROV=[['Sabi Sand private lodges','P',['Singita Boulders / Ebony','Londolozi','MalaMala','Sabi Sabi','Lion Sands','Ulusaba','Leopard Hills','Dulini','Arathusa','Simbambili','Savanna Lodge','Exeter / Kirkman’s Kamp (andBeyond)','Cheetah Plains','Elephant Plains','Nottens','Idube','Inyati','Chitwa Chitwa']],
+['Timbavati private lodges','P',['Kings Camp','Tanda Tula','Motswari','Umlani Bushcamp','Simbavati','Ngala (andBeyond)']],
+['Klaserie private lodges','P',['Africa on Foot','nThambo Tree Camp','Klaserie Sands','Ximuwu']],
+['Manyeleti private lodges','P',['Tintswalo Safari Lodge','Honeyguide','Pungwe Safari Camp']],
+['Balule private lodges','P',['Ezulwini','Pondoro','Naledi','Parsons Hilltop','Mohlabetsi']],
+['Thornybush & Kapama lodges','P',['Thornybush Game Lodge','Royal Malewane','Kapama River Lodge','Kapama Buffalo Camp','Jabulani']],
+['Lodges inside southern Kruger','S',['Jock Safari Lodge','Lukimbi','Rhino Post / Plains Camp','Rhino Walking Safaris','Kruger Shalati','Lion Sands Tinga / Narina','Shishangeni']],
+['Lodges inside central Kruger','C',['Singita Lebombo / Sweni','Imbali','Hamiltons Tented Camp','Hoyo Hoyo']],
+['Lodges in the far north','F',['The Outpost','Pafuri Camp (Return Africa)']],
+['Hotels & lodges just outside the southern gates','S',['Kruger Gate Hotel (Protea Hotel by Marriott)','Pestana Kruger Lodge','Buhala Lodge','Marloth Park lodges','Mjejane Reserve lodges','Hazyview hotels','White River hotels','Malelane hotels','Komatipoort hotels']],
+['Hotels & lodges near the central gates','C',['Hoedspruit hotels & lodges','Phalaborwa hotels & lodges','Orpen Gate area lodges']],
+['Day tours entering the south (Hazyview, White River, Marloth Park, Malelane, Komatipoort)','S',['Day tour via Phabeni / Paul Kruger Gate','Day tour via Malelane / Crocodile Bridge Gate']],
+['Day tours entering the centre (Hoedspruit, Phalaborwa)','C',['Day tour via Orpen Gate','Day tour via Phalaborwa Gate']],
+['Self-drive','X',['Self-drive, several areas']]];
+const CAMPS=[['S',['Skukuza','Lower Sabie','Pretoriuskop','Berg-en-Dal','Crocodile Bridge','Biyamiti']],['C',['Satara','Orpen','Olifants','Letaba','Balule camp','Talamati','Tamboti','Maroela']],['N',['Mopani','Shingwedzi','Bateleur','Sirheni','Shimuwini']],['F',['Punda Maria','Pafuri']],['P',['Sabi Sand','Timbavati','Klaserie','Manyeleti','Balule reserve','Thornybush','Kapama']],['X',['Driving through several areas']]];
+let loc=null;try{loc=JSON.parse(localStorage.getItem('kruger-loc')||'null')}catch(e){}
+if(!(loc&&REG[loc.r]&&typeof loc.n=='string'))loc=null;
+const score=a=>{const v=SC[a.id];if(!v)return 0;if(!loc)return Math.max(v[0],v[1]);return loc.r=='X'?Math.round((v[0]+v[1]+v[2]+v[3])/4):v[RI[loc.r]]};
+const band=x=>x>=80?['Very likely','vl']:x>=50?['Likely','l']:x>=25?['Good chance','g']:x>=10?['Possible','p']:['Rare here','r'];
+const isRare=a=>score(a)<10;
+let showRare=false;try{showRare=localStorage.getItem('kruger-rare')=='1'}catch(e){}
+const pool=()=>showRare?A:A.filter(a=>!isRare(a));
+/* ---------- likelihood engine (spec phase 1) ---------- */
+const GROUP={};const grp=(g,ids)=>ids.split(' ').forEach(i=>GROUP[i]=g);
+grp('graze','impala zebra wildebeest kudu giraffe nyala bushbuck sable roan eland tsessebe reedbuck klipspringer steenbok duiker grysbok warthog buffalo wrhino brhino baboon vervet samango bmongoose dmongoose squirrel hyrax eshrew');
+grp('water','hippo croc waterbuck elephant');grp('cat','lion leopard hyena caracal serval bbjackal ssjackal');grp('dogch','wilddog cheetah');
+grp('night','civet genet bushbaby porcupine aardvark pangolin hare hbadger bushpig chameleon rbeetle');grp('owl','eagleowl pelsowl');grp('rep','monitor tortoise python mamba antlion dbeetle');
+const grpOf=a=>GROUP[a.id]||(a.t.includes('bird')?'bird':'graze');
+const TOD={graze:[1.2,1,.8,1.2,.3],water:[.9,1,1.2,1.1,.3],cat:[1.6,.9,.5,1.4,1.3],dogch:[1.5,1,.4,1.3,.1],night:[.2,.05,.02,.2,3],bird:[1.4,1.1,.7,1.1,.1],owl:[.3,.1,.1,.4,2],rep:[.6,1.1,1.2,1,.2]};
+const BINS=['Early morning','Mid-morning','Midday','Late afternoon','Night'];
+const SENS=new Set(['wrhino','brhino','pangolin']);
+const FADE={leopard:[12,3,36,1],lion:[18,5,48,2],hyena:[12,5,72,1],wilddog:[4,15,4,15],cheetah:[10,6,12,2],elephant:[6,6],buffalo:[24,6],hippo:[720,1],croc:[720,1],eagleowl:[168,.5],pelsowl:[168,.5],wrhino:[24,10],brhino:[24,10],pangolin:[24,10]};
+const fadeOf=a=>FADE[a.id]||(a.t.includes('bird')?[3,1]:[8,4]);
+const ACTS={self:'Self-drive',guided:'Guided drive (SANParks)',private:'Private reserve drive',night:'Night drive',walk:'Bush walk',hide:'Hide / waterhole'};
+const WX={normal:'Normal',hot:'Hot (35 °C+)',cool:'Cool',windy:'Windy',rain:'Raining',cloud:'Overcast'};
+const RAIN={normal:'Normal',wet:'Lots of rain',dry:'Very dry'};
+let plan={when:'stay',days:2,act:'self',time:'auto',hrs:3,wx:'normal',rain:'normal',river:false};
+try{const p=JSON.parse(localStorage.getItem('kruger-plan')||'null');if(p&&typeof p=='object')for(const k in plan)if(typeof p[k]==typeof plan[k])plan[k]=p[k]}catch(e){}
+// Kruger sun, moon and season (SAST = UTC+2), computed on the phone
+function sast(){const n=new Date(Date.now()+2*36e5);return {h:n.getUTCHours()+n.getUTCMinutes()/60,m:n.getUTCMonth()+1,y:n.getUTCFullYear(),doy:Math.floor((Date.UTC(n.getUTCFullYear(),n.getUTCMonth(),n.getUTCDate())-Date.UTC(n.getUTCFullYear(),0,0))/864e5)}}
+function sun(doy){const lat=-24*Math.PI/180,lon=31.5,g=2*Math.PI/365*(doy-1);const eq=229.18*(.000075+.001868*Math.cos(g)-.032077*Math.sin(g)-.014615*Math.cos(2*g)-.040849*Math.sin(2*g));const dec=.006918-.399912*Math.cos(g)+.070257*Math.sin(g)-.006758*Math.cos(2*g)+.000907*Math.sin(2*g)-.002697*Math.cos(3*g)+.00148*Math.sin(3*g);const ha=Math.acos(Math.cos(90.833*Math.PI/180)/(Math.cos(lat)*Math.cos(dec))-Math.tan(lat)*Math.tan(dec))*180/Math.PI;return {rise:(720-4*(lon+ha)-eq)/60+2,set:(720-4*(lon-ha)-eq)/60+2}}
+function moon(){const age=(((Date.now()-Date.UTC(2000,0,6,18,14))/864e5)%29.530588+29.530588)%29.530588;return age<3.7||age>25.8?'new':age>11&&age<18.5?'full':'part'}
+function binNow(){const t=sast(),s=sun(t.doy),h=t.h;if(h<s.rise||h>=s.set)return 4;if(h<s.rise+2)return 0;if(h>=s.set-2)return 3;if(h>=11&&h<15)return 2;return 1}
+const hh=x=>{const H=Math.floor(x),M=Math.round((x-H)*60);return `${String(H).padStart(2,'0')}:${String(M%60).padStart(2,'0')}`};
+// shared sightings: [{s,t,c,r,k,g,who}]
+let shared=[];
+function mods(a,bin,ctx){const G=grpOf(a),R=[];let m=1;const f=(x,txt)=>{if(x!==1){m*=x;R.push([x,txt])}};
+ f(TOD[G][bin],TOD[G][bin]>=1.3?`${BINS[bin]}: a good time for it`:TOD[G][bin]<=.5?`${BINS[bin]}: usually resting or out of sight`:'');
+ const wet=ctx.m>=11||ctx.m<=4,mid=a.id;
+ if(mid=='carmine'){const x=[9,10,11,12,1,2,3,4].includes(ctx.m)?1:[8,5].includes(ctx.m)?.5:.05;f(x,x<1?'Summer visitor: mostly away this month':'')}
+ else if(mid=='wkingfisher'){const x=[11,12,1,2,3].includes(ctx.m)?1:[10,4].includes(ctx.m)?.5:.05;f(x,x<1?'Summer visitor: mostly away this month':'')}
+ else if(mid=='tortoise'||mid=='dbeetle')f(wet?1.5:.3,wet?'Summer rains bring them out':'Winter: mostly inactive');
+ else if(G=='rep'&&!wet&&[6,7,8].includes(ctx.m))f(.6,'Cold months: less active');
+ else if(G=='graze'&&wet)f(.85,'Summer: animals spread out in thicker bush');
+ else if(G=='water'&&!wet)f(1.2,'Dry season: animals gather at water');
+ if(bin==4){const mo=ctx.moon;if(mo=='new'&&G=='cat')f(1.2,'Dark moon: big cats hunt more');if(mo=='full'&&G=='cat')f(.9,'Bright moon');if(mo=='full'&&G=='night')f(.8,'Bright moon: small night animals hide')}
+ const mam=!a.t.includes('bird')&&!a.t.includes('rep')&&!a.t.includes('bug');
+ if(plan.wx=='hot'&&mam)f(G=='water'?1.1:.7,G=='water'?'Hot: animals head to water':'Hot: animals rest in the shade');
+ if(plan.wx=='cool'&&G=='cat')f(1.1,'Cool weather: cats stay active longer');
+ if(plan.wx=='windy'&&(G=='graze'||G=='cat'))f(.8,'Windy: animals are skittish');
+ if(plan.wx=='rain')f(.5,'Raining: animals take cover');
+ if(plan.wx=='cloud'&&G=='cat')f(1.1,'Overcast: cats stay active longer');
+ if(plan.rain=='wet'){if(mid=='tortoise'||mid=='dbeetle')f(2,'Recent rain brings them out');else if(G=='water'||G=='graze')f(.8,'Recent rain: animals spread to fresh pools')}
+ if(plan.river&&(G=='water'||G=='graze'||G=='cat')){const x=wet?(plan.rain=='dry'?1.4:1.1):(plan.rain=='dry'?1.6:1.4);f(x,'Your route runs along a river or dam')}
+ const act=plan.act;
+ if(act=='guided')f(1.2,'Guided drive: a ranger helps spot');
+ if(act=='private'){const x={leopard:2.5,lion:1.8,cheetah:1.6,wilddog:1.6}[mid]||1.2;f(x,x>1.5?'Off-road tracking with a ranger and tracker':'Guided private drive')}
+ if(act=='night')f(1.2,'Night drive with a spotlight');
+ if(act=='walk'){const x=(mid=='tortoise'||a.t.includes('bug'))?1.5:a.t.includes('bird')?1.2:.6;f(x,x<1?'On foot: big animals keep their distance':'On foot: small things are easier to find')}
+ if(act=='hide')f(G=='water'?1.3:.5,G=='water'?'Waiting at water':'Hide: only what comes to the water');
+ if(act=='self'&&bin==4)f(G=='night'||G=='owl'?.5:.1,'Night: self-drivers stay in camp');
+ m=Math.min(4,Math.max(.01,m));return {m,R:R.filter(r=>r[1])}}
+function sightBoost(a,now){if(!loc||loc.r=='X'&&false)return {S:0,txt:''};const [tau0,sig0,tauK,sigK]=fadeOf(a);const rep=shared.filter(x=>x.s==a.id&&now-x.t<14*864e5);if(!rep.length)return {S:0,txt:''};
+ // cluster by camp: combined trust 1-Π(1-T)
+ const by={};for(const x of rep){const k=(SENS.has(a.id)?'':x.c)+'|'+x.r;(by[k]=by[k]||[]).push(x)}
+ let S=0,best=null;for(const k in by){const L=by[k],x0=L.reduce((p,x)=>x.t>p.t?x:p,L[0]);const sameCamp=!SENS.has(a.id)&&loc&&x0.c==loc.n,sameReg=loc&&x0.r==loc.r;const d=SENS.has(a.id)?(sameReg?10:999):sameCamp?2:sameReg?15:999;if(d>100)continue;
+  const kill=L.some(x=>x.k),tau=kill&&tauK?tauK:tau0,sig=kill&&sigK?sigK:sig0,dt=(now-x0.t)/36e5;const T=1-L.reduce((p,x)=>p*(1-(x.g?.9:.5)),1);
+  const v=(SENS.has(a.id)?.5:2)*T*(kill?2:1)*Math.exp(-dt/tau)*Math.exp(-d/sig);S+=v;if(!best||v>best.v)best={v,dt,n:L.length,c:x0.c,kill,sameCamp}}
+ S=Math.min(3,S);if(!best||best.v<.02||SENS.has(a.id))return {S,txt:''};
+ const ago=best.dt<1?'under an hour ago':best.dt<24?`${Math.round(best.dt)} h ago`:`${Math.round(best.dt/24)} days ago`;
+ const where=SENS.has(a.id)?'Reported in this region':best.sameCamp?`Reported near ${best.c}`:'Reported in this area';
+ return {S,txt:`${where} ${ago}${best.kill?' on a kill':''}${best.n>1?` (${best.n} reports)`:''}`}}
+function chance(a){const p0=score(a);const B=p0<=0?0:-Math.log(1-Math.min(p0,99)/100)/4;const t=sast(),ctx={m:t.m,moon:moon()},now=Date.now();let lam=0,R=[];
+ const one=(bin,h)=>{const r=mods(a,bin,ctx);R=R.concat(r.R);return B*r.m*Math.pow(h/3,.7)};
+ if(plan.act=='night'){const per=one(4,plan.when=='now'?plan.hrs:3);lam=plan.when=='stay'?per*plan.days:per}
+ else if(plan.when=='now'){const bin=plan.time=='auto'?binNow():+plan.time;lam=one(bin,plan.hrs)}
+ else{const day=one(0,3)+one(3,3);lam=plan.when=='stay'?day*plan.days:day}
+ const sb=sightBoost(a,now);lam+=sb.S;const P=1-Math.exp(-lam);
+ const uniq={};for(const [f,t] of R){if(!uniq[t]||Math.abs(Math.log(f))>Math.abs(Math.log(uniq[t])))uniq[t]=f}
+ const reasons=Object.entries(uniq).sort((x,y)=>Math.abs(Math.log(y[1]))-Math.abs(Math.log(x[1]))).slice(0,3).map(x=>x[0]);if(sb.txt)reasons.unshift(sb.txt);
+ return {P,reasons:reasons.slice(0,3),sight:sb.txt}}
+const planLabel=()=>plan.when=='now'?'this drive':plan.when=='today'?'today':`over ${plan.days} day${plan.days>1?'s':''}`;
+/* ---------- filters ---------- */
+const FIL=[['all','All'],['big5','Big 5'],['ugly5','Ugly 5'],['little5','Little 5'],['pred','Predators'],['hoof','Hooved'],['prim','Primates'],['small','Small mammals'],['bird','Birds'],['raptor','Birds of prey'],['rep','Reptiles'],['bug','Insects']];
+const TAG=Object.fromEntries(FIL);
+const BIG5=[['lion','Lion'],['leopard','Leopard'],['elephant','Elephant'],['buffalo','Buffalo'],['rhino','Rhino']];
+/* ---------- state ---------- */
+let seen={};try{seen=JSON.parse(localStorage.getItem('kruger-seen')||'{}')||{}}catch(e){}
+let photos={};try{photos=JSON.parse(localStorage.getItem('kruger-photos')||'{}')||{}}catch(e){}
+let cat='all',show='all',q='',assets=null;
+const $=id=>document.getElementById(id);
+const fmt=d=>{try{return new Date(d+'T12:00').toLocaleDateString(undefined,{day:'numeric',month:'short'})}catch(e){return d}};
+$('grid').innerHTML=A.map(a=>`<article class="card" id="a-${a.id}"><div class="pics">${['m','f'].map(x=>`<figure data-k="${a.id}-${x}">${svg(a,x)}<figcaption>${x=='m'?'Male':'Female'}</figcaption><div class="pbtn"><button class="addp" data-k="${a.id}-${x}">Add photo</button><button class="delp" data-k="${a.id}-${x}" hidden>Remove</button></div></figure>`).join('')}</div><div class="txt"><div class="top"><button class="nm" aria-expanded="false" aria-controls="m-${a.id}"><h3>${a.n}</h3><span class="lrow"><span class="lk"></span><span class="chev">More info</span></span><span class="sg" hidden></span></button><button class="tick" data-id="${a.id}" aria-pressed="false">Seen it</button></div><p class="when" data-w="${a.id}"></p><div class="more" id="m-${a.id}" hidden><p class="sci">${a.sci}</p><p class="chance" data-c="${a.id}"></p><p><button class="repb" data-id="${a.id}">Report a sighting now</button></p><p>${a.b}</p><p><span class="k">Male vs female:</span> ${a.tell}</p><p><span class="k">Where to look:</span> ${a.look}</p><p class="links"><a href="https://www.google.com/search?tbm=isch&amp;q=${encodeURIComponent(a.n+' male and female')}" target="_blank" rel="noopener">Photos: male &amp; female</a><a href="https://en.wikipedia.org/wiki/Special:Search?search=${encodeURIComponent(a.sci)}" target="_blank" rel="noopener">Wikipedia</a></p><div class="tags">${a.t.map(t=>`<span>${TAG[t]}</span>`).join('')}</div></div></div></article>`).join('');
+const LIKELY=['impala','elephant','zebra','buffalo','giraffe','wildebeest','kudu','warthog','baboon','vervet','hippo','guineafowl','ybhornbill','starling','roller','croc','waterbuck','oxpecker','fisheagle','wbvulture','bateleur','rbhornbill','squirrel','goaway','lbeeater','lion','hyena','steenbok','bmongoose','dmongoose','duiker','monitor','pkingfisher','wkingfisher','bweaver','hamerkop','dbeetle','carmine','bbjackal','wrhino','nyala','bushbuck','marabou','saddlebill','tortoise','klipspringer','leopard','hare','hyrax','ghornbill','kori','lappet','goliath','antlion','reedbuck','martial','cheetah','secretary','genet','eagleowl','bushbaby','rbeetle','wilddog','brhino','sable','eland','ostrich','tsessebe','roan','hbadger','ssjackal','samango','caracal','serval','civet','grysbok','bushpig','porcupine','eshrew','chameleon','python','mamba','aardvark','pelsowl','pangolin'];
+const rank=Object.fromEntries(LIKELY.map((id,i)=>[id,i]));
+let sort='likely';try{sort=localStorage.getItem('kruger-sort')||'likely'}catch(e){}
+const cards=Object.fromEntries(A.map(a=>[a.id,$('a-'+a.id)]));
+function chips(){const P=pool();$('chips').innerHTML=FIL.map(([k,l])=>{const n=k=='all'?P.length:P.filter(a=>a.t.includes(k)).length,s=P.filter(a=>(k=='all'||a.t.includes(k))&&seen[a.id]).length;return `<button data-c="${k}" aria-pressed="${k==cat}">${l}<b>${s}/${n}</b></button>`}).join('')}
+function paint(){
+ let vis=0;
+ for(const a of A){const c=cards[a.id],s=!!seen[a.id];c.classList.toggle('seen',s);const b=c.querySelector('.tick');b.setAttribute('aria-pressed',s);b.textContent=s?'Seen ✓':'Seen it';c.querySelector('.when').textContent=s?'Seen '+fmt(seen[a.id]):'';
+  const ok=(showRare||!isRare(a))&&(cat=='all'||a.t.includes(cat))&&(show=='all'||(show=='seen')==s)&&(!q||(a.n+' '+a.sci).toLowerCase().includes(q));c.hidden=!ok;if(ok)vis++}
+ const CH={};for(const a of A)CH[a.id]=chance(a);
+ const ord=[...A].sort(sort=='az'?(x,y)=>x.n.localeCompare(y.n):(x,y)=>(CH[y.id].P-CH[x.id].P)||((rank[x.id]??999)-(rank[y.id]??999)));
+ for(const a of A){const ch=CH[a.id],pc=Math.round(ch.P*100),[t,c]=band(pc),card=cards[a.id],el=card.querySelector('.lk');el.textContent=t;el.className='lk '+c;
+  card.querySelector('.chance').textContent=`Chance ${planLabel()}${loc?' around '+loc.n:''}: about ${pc}% (${t.toLowerCase()}). ${ch.reasons.length?'Why: '+ch.reasons.join('; ')+'.':''} Estimate, not a guarantee.`;
+  const sg=card.querySelector('.sg');sg.textContent=ch.sight;sg.hidden=!ch.sight}
+ $('planb').textContent=`Plan: ${plan.when=='now'?'this drive':plan.when=='today'?'today':plan.days+' days'} · ${{self:'self-drive',guided:'guided',private:'private drive',night:'night drive',walk:'walk',hide:'hide'}[plan.act]}${plan.wx!='normal'?' · '+WX[plan.wx].toLowerCase():''}`;
+ $('locb').textContent=loc?loc.n+(loc.r=='X'?'':' · '+{S:'South',C:'Central',N:'North',F:'Far North',P:'Private'}[loc.r]):'Set your location';
+ let ns=0,nt=0;for(const a of ord){const c=cards[a.id],s=!!seen[a.id];(s?$('gridSeen'):$('grid')).appendChild(c);if(!c.hidden)s?ns++:nt++}
+ $('seenh').hidden=ns==0;$('seenN').textContent=ns+(ns==1?' animal':' animals');
+ $('empty').hidden=vis>0;$('sort').value=sort;
+ $('optSum').textContent=[show=='todo'?'To find':show=='seen'?'Seen':'',showRare?'+ rare':'',sort=='az'?'A–Z':''].filter(Boolean).join(' · ');
+ const P=pool(),n=P.filter(a=>seen[a.id]).length;$('cnt').innerHTML=`${n} <small>of ${P.length} seen</small>`;$('barI').style.width=(n/P.length*100)+'%';$('rare').setAttribute('aria-pressed',showRare);{const nr=A.filter(isRare).length;$('rare').textContent=showRare?`Hide ${nr} rare here`:`Show ${nr} rare here`}
+ $('five').innerHTML='<span style="border:0;padding-left:0;background:none;font-weight:600">Big 5:</span>'+BIG5.map(([k,l])=>{const on=k=='rhino'?(seen.wrhino||seen.brhino):seen[k];return `<span class="${on?'on':''}">${l}</span>`}).join('');
+ chips();
+}
+/* ---------- saving ---------- */
+let db=null,ref=null,busy=false,again=false;
+function store(){try{localStorage.setItem('kruger-seen',JSON.stringify(seen));localStorage.setItem('kruger-at',String(Date.now()))}catch(e){}push()}
+async function push(){if(!ref)return;if(busy){again=true;return}busy=true;try{await ref.set({seen,loc,plan,photos:Object.fromEntries(Object.entries(photos).filter(([k,v])=>v.id)),at:Date.now()});$('sync').textContent='Your ticks are saved to your Claude account, so they follow you between devices.'}catch(e){$('sync').textContent='Couldn’t reach your account just now; ticks are saved on this device.'}busy=false;if(again){again=false;push()}}
+(async()=>{try{if(!window.claude||!claude.use)return;const [d,u]=await Promise.all([claude.use('db'),claude.use('user')]);if(!d||!u)return;const id=await u.id();if(!id)return;db=d;ref=db.collection('data/users/'+id).doc('kruger');let v=await ref.get();if(v&&typeof v.data=='function')v=v.data();else if(v&&v.data&&typeof v.data=='object'&&!v.seen)v=v.data;
+ if(v&&v.seen&&typeof v.seen=='object'){let la=0;try{la=+localStorage.getItem('kruger-at')||0}catch(e){}
+  if(!(la>(+v.at||0))){seen={};for(const k in v.seen)if(typeof v.seen[k]=='string')seen[k]=v.seen[k];try{localStorage.setItem('kruger-seen',JSON.stringify(seen))}catch(e){}}paint()}
+ if(v&&v.loc&&REG[v.loc.r]&&typeof v.loc.n=='string'&&v.loc.n.length<40&&!loc){loc={r:v.loc.r,n:v.loc.n};try{localStorage.setItem('kruger-loc',JSON.stringify(loc))}catch(e){}closePicker();paint()}
+ if(v&&v.photos&&typeof v.photos=='object'){for(const k in v.photos){const ph=v.photos[k];if(/^[a-z0-9]+-[mf]$/.test(k)&&ph&&/^[\w-]+$/.test(ph.id||'')&&!photos[k])photos[k]={id:ph.id}}paintPhotos()}
+ try{assets=await claude.use('assets')}catch(e){}
+ $('sync').textContent='Your ticks are saved to your Claude account, so they follow you between devices.';push()}catch(e){}})();
+/* ---------- photos ---------- */
+const srcOf=ph=>ph.id?'/_blob/'+ph.id:(ph.d&&ph.d.startsWith('data:image/')?ph.d:'');
+const DEFPH={'bateleur-m':'img/bateleur-m.jpg'};
+function paintPhotos(){for(const fig of document.querySelectorAll('figure[data-k]')){const k=fig.dataset.k,ph=photos[k];let img=fig.querySelector('img.ph');const src=ph?srcOf(ph):(DEFPH[k]||'');
+ if(src){if(!img){img=document.createElement('img');img.className='ph';img.alt='';img.loading='lazy';fig.insertBefore(img,fig.querySelector('figcaption'))}if(img.getAttribute('src')!==src)img.src=src}else if(img)img.remove();
+ let cr=fig.querySelector('.credit');const showCr=!ph&&DEFPH[k];if(showCr&&!cr){cr=document.createElement('a');cr.className='credit';cr.href='https://commons.wikimedia.org/wiki/Category:Terathopius_ecaudatus';cr.target='_blank';cr.rel='noopener';cr.textContent='Photo: Wikimedia Commons';fig.appendChild(cr)}else if(!showCr&&cr)cr.remove();
+ fig.querySelector('.addp').textContent=src?'Change':'Add photo';fig.querySelector('.delp').hidden=!ph}}
+function savePhotosLocal(){try{localStorage.setItem('kruger-photos',JSON.stringify(photos))}catch(e){}}
+function shrink(file,max,q){return new Promise((ok,no)=>{const u=URL.createObjectURL(file),im=new Image();im.onload=()=>{const r=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*r);c.height=Math.round(im.height*r);c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);c.toBlob(b=>b?ok({b,c}):no(),'image/jpeg',q)};im.onerror=()=>{URL.revokeObjectURL(u);no()};im.src=u})}
+let pk=null;
+document.addEventListener('click',e=>{const a=e.target.closest('.addp');if(a){pk=a.dataset.k;$('file').value='';$('file').click();return}
+ const d=e.target.closest('.delp');if(d){delete photos[d.dataset.k];savePhotosLocal();paintPhotos();push();}});
+$('file').addEventListener('change',async()=>{const file=$('file').files[0],k=pk;if(!file||!k)return;const fig=document.querySelector(`figure[data-k="${k}"]`),busy=document.createElement('div');busy.className='busy';busy.textContent='Saving photo…';fig.appendChild(busy);
+ try{const {b,c}=await shrink(file,900,.82);let done=false;
+  if(assets){try{const r=await assets.upload(b);if(r&&/^[\w-]+$/.test(r.id||'')){photos[k]={id:r.id};done=true}}catch(e){}}
+  if(!done){const sm=document.createElement('canvas'),r=Math.min(1,420/Math.max(c.width,c.height));sm.width=Math.round(c.width*r);sm.height=Math.round(c.height*r);sm.getContext('2d').drawImage(c,0,0,sm.width,sm.height);photos[k]={d:sm.toDataURL('image/jpeg',.75)}}
+  savePhotosLocal();paintPhotos();push();
+ }catch(e){$('tmsg').textContent='Couldn’t read that image — try another.';$('toast').hidden=false;$('undo').hidden=true;setTimeout(()=>{$('toast').hidden=true;$('undo').hidden=false},4000)}
+ busy.remove()});
+/* ---------- events ---------- */
+let last=null,tt;
+function toggle(card,force){const nm=card.querySelector('.nm'),m=card.querySelector('.more'),open=force??m.hidden;m.hidden=!open;nm.setAttribute('aria-expanded',open);nm.querySelector('.chev').textContent=open?'Less info':'More info'}
+document.querySelector('main').addEventListener('click',e=>{const n=e.target.closest('.nm');if(n){toggle(n.closest('.card'));return}
+ if(e.target.closest('figure')&&!e.target.closest('button')){toggle(e.target.closest('.card'));return}});
+document.querySelector('main').addEventListener('click',e=>{const b=e.target.closest('.tick');if(!b)return;const id=b.dataset.id,a=A.find(x=>x.id==id);
+ if(seen[id]){last=[id,seen[id]];delete seen[id];$('tmsg').textContent=a.n+' unticked';$('undo').hidden=false;$('toast').hidden=false;clearTimeout(tt);tt=setTimeout(()=>$('toast').hidden=true,5000)}
+ else{seen[id]=new Date(Date.now()+2*36e5).toISOString().slice(0,10);offerShare(id)}
+ store();paint()});
+$('undo').addEventListener('click',()=>{if(last){seen[last[0]]=last[1];last=null;store();paint()}$('toast').hidden=true});
+$('chips').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;cat=b.dataset.c;paint()});
+document.querySelector('.seg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;show=b.dataset.s;for(const x of document.querySelectorAll('.seg button'))x.setAttribute('aria-pressed',x==b);paint()});
+$('rare').addEventListener('click',()=>{showRare=!showRare;try{localStorage.setItem('kruger-rare',showRare?'1':'0')}catch(e){}paint()});
+const RLAB={S:'Southern Kruger',C:'Central Kruger',N:'Northern Kruger',F:'Far North (Punda Maria, Pafuri)',P:'Private reserves (Greater Kruger)',X:'Not one place'};
+const RSHORT={S:'south',C:'central',N:'north',F:'far north',P:'private reserve',X:'mixed'};
+let pkt='camp';
+function pkList(){const q=$('pkq').value.trim().toLowerCase(),CG=CAMPS.map(([r,l])=>[RLAB[r],r,l]),groups=q?[...CG,...PROV]:pkt=='camp'?CG:PROV;
+ const words=q.split(/\s+/).filter(Boolean);
+ const html=groups.map(([g,r,l])=>{const it=l.filter(n=>{const t=(n+' '+g).toLowerCase();return words.every(w=>t.includes(w))});if(!it.length)return'';return `<div class="pkg"><h3>${g}${(q||pkt=='prov')&&!CAMPS.some(c=>RLAB[c[0]]==g)?` <span class="rg">${REG[r]}</span>`:''}</h3><div>${it.map(n=>`<button data-r="${r}" data-n="${n}" aria-pressed="${!!loc&&loc.n==n}">${n}</button>`).join('')}</div></div>`}).join('');
+ $('pkl').innerHTML=html||'<p class="pknote">No match — try the other tab, or pick the nearest camp.</p>';
+ for(const b of document.querySelectorAll('.pktabs button'))b.setAttribute('aria-pressed',b.dataset.t==pkt)}
+document.querySelector('.pktabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;pkt=b.dataset.t;pkList()});
+$('pkq').addEventListener('input',pkList);
+function openPicker(){if(loc&&PROV.some(g=>g[2].includes(loc.n)))pkt='prov';pkList();$('pkc').hidden=!loc;$('picker').hidden=false;$('picker').scrollTop=0;document.documentElement.style.overflow='hidden'}
+function closePicker(){$('picker').hidden=true;document.documentElement.style.overflow=''}
+$('locb').addEventListener('click',openPicker);
+$('pkc').addEventListener('click',()=>{if(loc)closePicker()});
+$('pkl').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;loc={r:b.dataset.r,n:b.dataset.n};try{localStorage.setItem('kruger-loc',JSON.stringify(loc));localStorage.setItem('kruger-at',String(Date.now()))}catch(x){}closePicker();paint();push();scrollTo(0,0)});
+if(!loc)openPicker();
+/* ---------- plan dialog ---------- */
+function paintPlan(){for(const g of document.querySelectorAll('.pseg')){const k=g.dataset.k;for(const b of g.querySelectorAll('button'))b.setAttribute('aria-pressed',String(plan[k])===b.dataset.v)}
+ $('daysv').textContent=plan.days;$('hrsv').textContent=plan.hrs;$('daysrow').hidden=plan.when!='stay';$('timerow').hidden=plan.when!='now';
+ const t=sast(),s=sun(t.doy),mo=moon();$('autoinfo').textContent=`${t.m>=11||t.m<=4?'summer (rainy season)':'winter (dry season)'}, ${mo=='new'?'dark moon':mo=='full'?'bright moon':'part moon'}, sunrise ${hh(s.rise)}, sunset ${hh(s.set)} (SA time).`}
+function savePlan(){try{localStorage.setItem('kruger-plan',JSON.stringify(plan))}catch(e){}paintPlan();paint();clearTimeout(window.__pp);window.__pp=setTimeout(push,1500)}
+$('planb').addEventListener('click',()=>{paintPlan();$('plandlg').hidden=false;$('plandlg').scrollTop=0;document.documentElement.style.overflow='hidden'});
+$('plc').addEventListener('click',()=>{$('plandlg').hidden=true;document.documentElement.style.overflow=''});
+$('plandlg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const g=b.closest('.pseg');
+ if(g){const k=g.dataset.k,v=b.dataset.v;plan[k]=typeof plan[k]=='boolean'?v=='true':v;if(k=='act'&&v=='night'&&plan.when=='now')plan.time='4';savePlan();return}
+ if(b.dataset.d){plan.days=Math.min(14,Math.max(1,plan.days+ +b.dataset.d));savePlan()}
+ if(b.dataset.h){plan.hrs=Math.min(8,Math.max(1,plan.hrs+ +b.dataset.h));savePlan()}});
+addEventListener('keydown',e=>{if(e.key!='Escape')return;if(!$('plandlg').hidden)$('plc').click();else if(!$('picker').hidden&&loc)closePicker()});
+setInterval(()=>{if(plan.when=='now'&&plan.time=='auto'&&!document.hidden)paint()},300000);
+/* ---------- sharing sightings ---------- */
+let sdb=null,uidv=null,isGuide=false,shareFor=null,stt;
+function offerShare(id){if(!sdb||!uidv||!loc||loc.r=='X')return;const a=A.find(x=>x.id==id);shareFor=id;$('smsg').textContent=`Share your ${a.n.toLowerCase()} sighting${SENS.has(id)?' (shown as “this region” only)':''}?`;$('sharebar').hidden=false;clearTimeout(stt);stt=setTimeout(()=>$('sharebar').hidden=true,12000)}
+let sbusy=false;
+async function share(kill){const id=shareFor;$('sharebar').hidden=true;if(!id||!sdb||!uidv||!loc||sbusy)return;sbusy=true;
+ const mine=shared.filter(x=>x.who==uidv&&Date.now()-x.t<30*864e5).map(({who,...x})=>x);
+ mine.push({s:id,t:Date.now(),c:SENS.has(id)?'':loc.n,r:loc.r,k:!!kill,g:isGuide});
+ try{await sdb.collection('sightings').doc(uidv).set({items:mine.slice(-40),at:Date.now()});$('tmsg').textContent='Sighting shared';}catch(e){$('tmsg').textContent='Couldn’t share just now';}
+ $('undo').hidden=true;$('toast').hidden=false;clearTimeout(tt);tt=setTimeout(()=>{$('toast').hidden=true;$('undo').hidden=false},3000);sbusy=false}
+$('sh1').addEventListener('click',()=>share(false));$('sh2').addEventListener('click',()=>share(true));$('shx').addEventListener('click',()=>$('sharebar').hidden=true);
+document.querySelector('main').addEventListener('click',e=>{const b=e.target.closest('.repb');if(!b)return;if(!sdb||!uidv){$('tmsg').textContent='Sign in to Claude to share sightings';$('undo').hidden=true;$('toast').hidden=false;clearTimeout(tt);tt=setTimeout(()=>{$('toast').hidden=true;$('undo').hidden=false},3000);return}if(!loc||loc.r=='X'){openPicker();return}offerShare(b.dataset.id)});
+(async()=>{try{if(!window.claude||!claude.use)return;const [d,u]=await Promise.all([claude.use('db'),claude.use('user')]);if(!d||!u)return;const id=await u.id();if(!id)return;sdb=d;uidv=id;document.body.classList.add('cloud');try{isGuide=!!(await u.canEdit())}catch(e){}
+ const ok=x=>x&&typeof x=='object'&&SC[x.s]&&typeof x.t=='number'&&x.t<Date.now()+6e5&&typeof x.c=='string'&&x.c.length<60&&REG[x.r];
+ d.collection('sightings').onSnapshot(snap=>{const out=[];for(const doc of snap.docs){const v=doc.data();if(v&&Array.isArray(v.items))for(const x of v.items.slice(-40))if(ok(x))out.push({s:x.s,t:x.t,c:x.c,r:x.r,k:!!x.k,g:!!x.g,who:doc.id})}shared=out;paint()},()=>{})}catch(e){}})();
+$('optb').addEventListener('click',()=>{const o=$('opts'),open=o.hidden;o.hidden=!open;$('optb').setAttribute('aria-expanded',open)});
+{let lastY=scrollY;addEventListener('scroll',()=>{const y=scrollY,t=$('tools'),top=document.querySelector('main').offsetTop;
+ if(y<top-40||document.activeElement===$('q')||!$('opts').hidden){t.classList.remove('tuck')}else if(y>lastY+6){t.classList.add('tuck')}else if(y<lastY-6){t.classList.remove('tuck')}
+ lastY=y},{passive:true})}
+$('sort').addEventListener('change',e=>{sort=e.target.value;try{localStorage.setItem('kruger-sort',sort)}catch(x){}paint()});
+$('q').addEventListener('input',e=>{q=e.target.value.trim().toLowerCase();paint()});
+paint();paintPhotos();
+}
+</script>
+<div class="toast upd" id="updbar" hidden><span>A new version is ready.</span><button id="updgo">Update now</button></div>
+<style>.toast.upd[hidden]{display:none}.instb{margin-top:6px;font:600 14px Barlow,sans-serif;min-height:34px;padding:0 12px;border-radius:17px;border:2px solid #fff;background:#fff7e6;color:#2f3b1f;cursor:pointer}</style>
+<script>
+{
+ // Offline + updates: the service worker keeps a copy of the app on the phone.
+ if('serviceWorker' in navigator&&location.protocol==='https:'){
+  let refreshing=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(refreshing)return;refreshing=true;location.reload()});
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+   const offer=w=>{const b=document.getElementById('updbar');b.hidden=false;document.getElementById('updgo').onclick=()=>w.postMessage('skip')};
+   if(reg.waiting&&navigator.serviceWorker.controller)offer(reg.waiting);
+   reg.addEventListener('updatefound',()=>{const w=reg.installing;w&&w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)offer(w)})});
+   const check=()=>{if(navigator.onLine)reg.update().catch(()=>{})};document.addEventListener('visibilitychange',()=>{if(!document.hidden)check()});setInterval(check,30*60*1000);
+  }).catch(()=>{});
+ }
+ // Android "Install app" button
+ let deferred=null;
+ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;const hb=document.querySelector('.hbtns');if(hb&&!document.getElementById('instb')){const b=document.createElement('button');b.id='instb';b.className='instb';b.textContent='Install app';b.onclick=async()=>{b.remove();deferred.prompt();deferred=null};hb.appendChild(b)}});
+ window.addEventListener('appinstalled',()=>{const b=document.getElementById('instb');if(b)b.remove()});
+}
+</script>
+</body>
+</html>

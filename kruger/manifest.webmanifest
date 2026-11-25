@@ -1,0 +1,16 @@
+{
+  "name": "Kruger Tick List",
+  "short_name": "Kruger",
+  "description": "Tick off the animals you see in Kruger, with likely sightings for where you're staying.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e7dcc0",
+  "theme_color": "#2f3b1f",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
