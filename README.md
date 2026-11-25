@@ -32,11 +32,4 @@ Upload the changed file over the old one in GitHub. Then open `sw.js`, change `q
 
 Quest order, names, difficulty and length come from the [Old School RuneScape Wiki](https://oldschool.runescape.wiki/), used under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/). Keep this project non-commercial and keep the credit. Quest sync by [RuneProfile](https://www.runeprofile.com/). Fan-made and not affiliated with Jagex.
 
-## Kruger tick list (`/kruger/`)
-
-A safari sightings tick list: male and female pictures, Big 5 / Ugly 5 / Little 5 filters, likely-to-see ordering for your camp or lodge, and a trip plan (activity, time, weather).
-
-- Open `https://peshnz.github.io/osrs-quest-tracker/kruger/` and install it (Android: **Install app** button or ⋮ → **Install app**; iPhone: Share → **Add to Home Screen**).
-- Works fully offline after the first open. Ticks, location, plan and your own photos are saved on the phone.
-- Updates: change files in `kruger/` and regenerate `kruger/sw.js` (its `VERSION` must change). Phones show **Update now** next time they're online.
-- Photo of the male bateleur: Wikimedia Commons.
+The Kruger tick list has moved to its own repo: https://github.com/Peshnz/kruger-tick-list
